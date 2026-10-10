@@ -1397,3 +1397,153 @@ input[type="text"]:focus, input[type="number"]:focus { border-color: var(--gold)
   .char-preview { width: 80px; height: 80px; }
   .felt::after { font-size: 18vh; }
 }
+
+/* ==================================================================== *
+ *  V4 · CORRECCIONES DE MESA, HIPODROMO, SONIDO, GUARDIA Y GUIAS       *
+ * ==================================================================== */
+
+/* --- Mesa: NO recortar asientos (cartas/personajes siempre visibles) --- */
+.felt {
+  overflow: visible;
+  border-color: var(--rail, #3a2412);
+}
+.felt::after {
+  content: var(--mark, "\2660");
+  color: var(--mark-color, rgba(235,240,250,.045));
+}
+.felt-center { z-index: 5; }
+
+/* --- Asiento humano: personaje abajo, cartas hacia el centro --- */
+.seat-opp { z-index: 2; }
+.seat-you { z-index: 6; flex-direction: column-reverse; gap: 4px; }
+.seat-you .seat-hand { margin-bottom: 0; margin-top: 3px; }
+.seat-you .seat-photo { width: 40px; height: 40px; }
+
+/* --- Hipodromo --- */
+.hp-wrap {
+  flex: 1;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px clamp(10px, 3vw, 28px) 22px;
+  min-height: 0; overflow: auto;
+}
+.hp-status {
+  text-align: center;
+  font-family: var(--font-title); letter-spacing: .4px;
+  color: var(--gold-lt);
+  background: rgba(0,0,0,.38);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 16px;
+  min-height: 40px;
+  display: flex; align-items: center; justify-content: center;
+}
+.hp-track { display: flex; flex-direction: column; gap: 8px; }
+.hp-lane {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(88px, 1fr) auto minmax(90px, 40%);
+  align-items: center; gap: 10px;
+  background: linear-gradient(180deg, #15171e, #0c0d11);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: #e9ebf0; text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .1s;
+}
+.hp-lane:hover { border-color: #4a4f5c; }
+.hp-lane.selected { border-color: var(--gold); box-shadow: 0 0 16px -4px var(--gold); }
+.hp-num {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-weight: 800; font-size: 12px;
+  background: #0b0c10; border: 1px solid var(--line); color: var(--gold);
+}
+.hp-name { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hp-odds {
+  font-weight: 800; font-size: 12px; color: var(--gold-lt);
+  background: #0b0c10; border: 1px solid #3a2f10;
+  border-radius: 999px; padding: 2px 9px;
+}
+.hp-runway {
+  position: relative; height: 24px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 calc(20% - 1px), rgba(255,255,255,.07) calc(20% - 1px) 20%),
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.25));
+  border-radius: 6px; overflow: hidden;
+}
+.hp-runner {
+  position: absolute; left: 0; top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px; line-height: 1;
+  transition: left .09s linear;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,.5));
+}
+.hp-runner.winner { filter: drop-shadow(0 0 7px var(--gold)); }
+.hp-controls { display: flex; flex-direction: column; gap: 12px; }
+.hp-kinds { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+/* --- Guia de Blackjack --- */
+.bj-guide { max-height: 58vh; overflow: auto; }
+.bj-intro { font-size: 13.5px; color: #c9cdd6; margin: 0 0 12px; line-height: 1.55; }
+.bj-table { display: flex; flex-direction: column; gap: 6px; }
+.bj-row {
+  display: grid; grid-template-columns: minmax(88px, 32%) 1fr;
+  gap: 10px; align-items: center;
+  background: #0c0d11; border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 12px;
+}
+.bj-hand { font-weight: 800; color: var(--gold-lt); font-size: 13px; }
+.bj-act { font-size: 12.5px; color: #c9cdd6; }
+.bj-act.good { color: #7ee0a8; font-weight: 700; }
+.bj-act.mid { color: #f0d38a; font-weight: 700; }
+.bj-note { font-size: 12px; color: #8f95a3; margin-top: 10px; }
+
+/* --- Tarjeta de mesa de caballos --- */
+.table-card.horses .table-icon { color: #8fd6a0; }
+
+/* --- Personaje: traje/ropa con detalles (v4) --- */
+.char-torso { position: relative; overflow: hidden; }
+.char-suit { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.char-head { box-shadow: inset 0 -3px 5px rgba(0,0,0,.15), 0 2px 4px rgba(0,0,0,.28); }
+
+.sound-toggle {
+  position: fixed; bottom: 16px; right: 16px; z-index: 120;
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(10,11,15,.88);
+  color: #f2f3f7; font-size: 19px; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,.55);
+  transition: border-color .15s, transform .1s, opacity .15s;
+}
+.sound-toggle:hover { border-color: var(--gold); }
+.sound-toggle:active { transform: scale(.94); }
+.sound-toggle.muted { opacity: .55; }
+
+/* --- Guardia anti-inspeccion --- */
+.guard-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  display: none; place-items: center;
+  background: rgba(4,5,8,.92);
+  backdrop-filter: blur(6px);
+}
+.guard-overlay.open { display: grid; }
+.guard-box {
+  text-align: center; max-width: 430px; padding: 36px 30px;
+  background: linear-gradient(180deg, #15171e, #0a0b0f);
+  border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+.guard-icon { font-size: 46px; }
+.guard-box h2 { font-family: var(--font-title); color: #f2b8b8; margin: 10px 0; }
+.guard-box p { color: #c9cdd6; line-height: 1.5; }
+.guard-sub { font-size: 12.5px; color: #8f95a3; }
+
+@media (max-width: 640px) {
+  .hp-lane { grid-template-columns: 22px 1fr auto; grid-template-areas: "num name odds" "run run run"; row-gap: 6px; }
+  .hp-num { grid-area: num; }
+  .hp-name { grid-area: name; }
+  .hp-odds { grid-area: odds; }
+  .hp-runway { grid-area: run; }
+  .sound-toggle { width: 40px; height: 40px; font-size: 16px; }
+}

@@ -18,9 +18,30 @@
     seats: [],                 /* asientos visuales */
     humanResolve: null, leaving: false,
     painted: { holes: false, community: 0 },
-    bj: { bankroll: 0, bet: 0, settled: false, dealerRevealed: false, buyIn: 0 }
+    bj: { bankroll: 0, bet: 0, settled: false, dealerRevealed: false, buyIn: 0 },
+    horses: { bankroll: 0, bet: 0, kind: "win", selected: 0, race: null, timer: 0, running: false, buyIn: 0, minBet: 0, maxBet: 0, numHorses: 6 }
   };
   global.AllInApp = App;
+
+  const MUTE_KEY = "allin_kingdom_muted";
+
+  function wireSound() {
+    const btn = $("sound-toggle");
+    const saved = (function () { try { return localStorage.getItem(MUTE_KEY) === "1"; } catch (e) { return false; } })();
+    if (AK.Sound) AK.Sound.setMuted(saved);
+    function paint() {
+      if (!btn || !AK.Sound) return;
+      btn.textContent = AK.Sound.isMuted() ? "\uD83D\uDD07" : "\uD83D\uDD0A";
+      btn.classList.toggle("muted", AK.Sound.isMuted());
+    }
+    if (btn) btn.addEventListener("click", function () {
+      if (!AK.Sound) return;
+      const m = AK.Sound.toggle();
+      try { localStorage.setItem(MUTE_KEY, m ? "1" : "0"); } catch (e) {}
+      paint();
+    });
+    paint();
+  }
 
   /* ------------------------------------------------------------------ *
    *  NAVEGACION                                                        *
@@ -35,9 +56,17 @@
    *  INICIALIZACION                                                    *
    * ------------------------------------------------------------------ */
   function init() {
+    if (AK.Guard) AK.Guard.install();
+    wireSound();
     wireProfile();
     wireMap();
     wireTableHud();
+    wireHorses();
+
+    /* Sonido en cualquier boton + desbloqueo de audio */
+    document.addEventListener("click", function (e) {
+      if (AK.Sound) { AK.Sound.unlock(); if (e.target && e.target.closest && e.target.closest("button")) AK.Sound.play("click"); }
+    }, true);
 
     const saved = AK.loadGame();
     if (saved) { App.state = saved; renderCityMap(); showScreen("screen-city"); }
@@ -242,18 +271,28 @@
         card.type = "button";
         card.className = "table-card " + t.game;
         const isPoker = t.game === "poker";
+        const isHp = t.game === "horses";
         const affordable = App.state.gold >= t.buyIn;
+        let icon, stats;
+        if (isPoker) {
+          icon = "\u2660\u2665";
+          stats = "<span>\uD83D\uDC65 " + t.seats + " jugadores</span><span>\uD83D\uDD3A Ciegas " + UI.formatGold(t.smallBlind) + "/" + UI.formatGold(t.bigBlind) + "</span>";
+        } else if (isHp) {
+          icon = "\uD83D\uDC0E";
+          stats = "<span>\uD83C\uDFC1 " + (t.numHorses || 6) + " caballos</span><span>\uD83D\uDCB0 Apuesta " + UI.formatGold(t.minBet) + "–" + UI.formatGold(t.maxBet) + "</span>";
+        } else {
+          icon = "\uD83C\uDCCF";
+          stats = "<span>\uD83D\uDCB0 Apuesta " + UI.formatGold(t.minBet) + "–" + UI.formatGold(t.maxBet) + "</span>";
+        }
         card.innerHTML =
-          '<div class="table-icon">' + (isPoker ? "\u2660\u2665" : "\uD83C\uDCCF") + "</div>" +
+          '<div class="table-icon">' + icon + "</div>" +
           '<div class="table-name">' + t.name + "</div>" +
           '<div class="table-desc">' + t.desc + "</div>" +
           '<div class="table-stats">' +
-            (isPoker
-              ? "<span>\uD83D\uDC65 " + t.seats + " jugadores</span><span>\uD83D\uDD3A Ciegas " + UI.formatGold(t.smallBlind) + "/" + UI.formatGold(t.bigBlind) + "</span>"
-              : "<span>\uD83D\uDCB0 Apuesta " + UI.formatGold(t.minBet) + "–" + UI.formatGold(t.maxBet) + "</span>") +
+            stats +
             "<span>\uD83C\uDF9F Entrada " + UI.formatGold(t.buyIn) + " \uD83E\uDE99</span>" +
           "</div>" +
-          '<div class="table-cta">' + (affordable ? "Sentarse \u2192" : "\uD83D\uDD12 Falta oro") + "</div>";
+          '<div class="table-cta">' + (affordable ? (isHp ? "Apostar \u2192" : "Sentarse \u2192") : "\uD83D\uDD12 Falta oro") + "</div>";
         if (!affordable) card.classList.add("locked");
         card.addEventListener("click", function () {
           if (App.state.gold < t.buyIn) {
@@ -287,12 +326,12 @@
 
   function seatPositions(n) {
     const pos = [];
-    pos[0] = { x: 50, y: 82 };
+    pos[0] = { x: 50, y: 79 };
     const opp = n - 1;
     for (let i = 0; i < opp; i++) {
       const t = (i + 1) / (opp + 1);
       const angle = Math.PI * (1 + t);
-      pos[i + 1] = { x: 50 + 45 * Math.cos(angle), y: 48 + 40 * Math.sin(angle) };
+      pos[i + 1] = { x: 50 + 44 * Math.cos(angle), y: 42 + 24 * Math.sin(angle) };
     }
     return pos;
   }
@@ -402,7 +441,20 @@
     App.city = city; App.casino = casino; App.tableDef = t;
     App.state.gold -= t.buyIn;
     AK.saveGame(App.state);
-    if (t.game === "poker") startPoker(t); else startBlackjack(t);
+    if (t.game === "poker") startPoker(t);
+    else if (t.game === "blackjack") startBlackjack(t);
+    else if (t.game === "horses") startHorses(t);
+  }
+
+  function applyTableTheme(theme) {
+    const f = $("felt"); if (!f) return;
+    theme = theme || {};
+    f.style.setProperty("--felt", theme.felt || "#0e3d2f");
+    f.style.setProperty("--felt-2", theme.felt2 || "#0a2c22");
+    f.style.setProperty("--felt-edge", theme.edge || "#061a13");
+    f.style.setProperty("--rail", theme.rail || "#4a2f16");
+    f.style.setProperty("--mark", '"' + (theme.mark || "\u2660") + '"');
+    f.style.setProperty("--mark-color", theme.markColor || "rgba(235,240,250,.05)");
   }
 
   function startPoker(t) {
@@ -421,11 +473,13 @@
     });
 
     $("hud-level").textContent = t.name + " · " + App.city.name;
+    applyTableTheme(App.city.theme);
     buildFelt(specs);
     updateHudGold();
     (specs).forEach(function (s, i) { setStack(i, s.stack); });
     $("controls").className = "controls";
     showScreen("screen-table");
+    if (AK.Sound) AK.Sound.play("chip");
     UI.toast("Te sientas con " + UI.formatGold(t.buyIn) + " · Ciegas " + t.smallBlind + "/" + t.bigBlind, "info", 3000);
     playNextHand();
   }
@@ -475,6 +529,7 @@
         const down = !p.isHuman;
         UI.dealCard(App.seats[i].cardsEl, p.hole[round], { down: down });
         App.seats[i].dealt = true;
+        if (AK.Sound) AK.Sound.play("deal");
       }
       await UI.sleep(130);
     }
@@ -530,10 +585,10 @@
 
   function botReact(p, choice) {
     const charEl = App.seats[p.seat].charEl;
-    if (choice.type === "raise") C.react(charEl, "bet", 1200);
-    else if (choice.type === "allin") { C.react(charEl, "allin", 1600); if (Math.random() < 0.6) C.say(charEl, C.quip(p.quips, "allin")); }
+    if (choice.type === "raise") { C.react(charEl, "bet", 1200); if (AK.Sound) AK.Sound.play("chip"); }
+    else if (choice.type === "allin") { C.react(charEl, "allin", 1600); if (AK.Sound) AK.Sound.play("allin"); if (Math.random() < 0.6) C.say(charEl, C.quip(p.quips, "allin")); }
     else if (choice.type === "call") C.react(charEl, "call", 900);
-    else if (choice.type === "fold") C.react(charEl, "fold", 1100);
+    else if (choice.type === "fold") { C.react(charEl, "fold", 1100); if (AK.Sound) AK.Sound.play("fold"); }
     else C.react(charEl, "call", 700);
     if ((choice.type === "raise" || choice.type === "call") && Math.random() < 0.16) C.say(charEl, C.quip(p.quips, "bet"));
   }
@@ -549,6 +604,12 @@
 
   function clickAction(choice) {
     const r = App.humanResolve; App.humanResolve = null;
+    if (AK.Sound) {
+      if (choice.type === "allin") AK.Sound.play("allin");
+      else if (choice.type === "raise" || choice.type === "call") AK.Sound.play("chip");
+      else if (choice.type === "fold") AK.Sound.play("fold");
+      else AK.Sound.play("check");
+    }
     UI.clear($("controls"));
     if (r) r(choice);
   }
@@ -653,8 +714,9 @@
         showAction(seat, "+" + UI.formatGold(amt));
       });
       const youWon = winners.indexOf(0) >= 0;
-      if (youWon) { UI.burstFromCenter(30); App.state.stats.handsWon++; App.state.stats.biggestPot = Math.max(App.state.stats.biggestPot, ev.winnings[0]); }
+      if (youWon) { UI.burstFromCenter(30); App.state.stats.handsWon++; App.state.stats.biggestPot = Math.max(App.state.stats.biggestPot, ev.winnings[0]); if (AK.Sound) AK.Sound.play(ev.winnings[0] >= App.tableDef.bigBlind * 10 ? "bigwin" : "win"); }
       else {
+        if (AK.Sound) AK.Sound.play("lose");
         /* Reacciones de pena en los perdedores */
         en.players.forEach(function (p) {
           if (!p.folded && winners.indexOf(p.seat) < 0) {
@@ -754,10 +816,12 @@
       { name: "Croupier", title: "La Casa", face: DEALER_FACE, color: "#c0c0c0", skin: DEALER_FACE.skin, isHuman: false, stack: 0 }
     ];
     $("hud-level").textContent = t.name + " · " + App.city.name;
+    applyTableTheme(App.city.theme);
     buildFelt(specs);
     $("controls").className = "controls";
     showScreen("screen-table");
     updateHudGold();
+    if (AK.Sound) AK.Sound.play("chip");
     setStack(0, App.bj.bankroll);
     setStack(1, 0);
     UI.toast("Banca de " + UI.formatGold(t.buyIn) + " · Apuesta " + UI.formatGold(t.minBet) + "–" + UI.formatGold(t.maxBet), "info", 3200);
@@ -802,7 +866,7 @@
     row.className = "btn-row";
     row.appendChild(makeBtn("Repartir", "primary", dealBlackjack));
     row.appendChild(makeBtn("Cobrar y salir", "ghost", function () { cashOutBlackjack(); }));
-    row.appendChild(makeBtn("\uD83D\uDCD6 Guía", "ghost", UI.openGuide));
+    row.appendChild(makeBtn("\uD83C\uDCCF Guía", "ghost", UI.openBlackjackGuide));
     box.appendChild(row);
   }
 
@@ -838,6 +902,7 @@
     App.engine.playerHand.forEach(function (c) {
       UI.dealCard(App.seats[0].cardsEl, c, { down: false });
     });
+    if (AK.Sound) AK.Sound.play("deal");
     paintBjValues();
   }
 
@@ -848,7 +913,7 @@
     row.appendChild(makeBtn("Pedir", "primary", bjHit));
     row.appendChild(makeBtn("Plantarse", "gold", bjStand));
     if (App.engine.canDouble()) row.appendChild(makeBtn("Doblar", "danger", bjDouble));
-    row.appendChild(makeBtn("\uD83D\uDCD6 Guía", "ghost", UI.openGuide));
+    row.appendChild(makeBtn("\uD83C\uDCCF Guía", "ghost", UI.openBlackjackGuide));
     box.appendChild(row);
   }
 
@@ -904,6 +969,12 @@
     };
     const type = res.outcome === "lose" ? "lose" : (res.outcome === "push" ? "info" : "win");
     UI.toast(msgs[res.outcome], type, 2600);
+    if (AK.Sound) {
+      if (res.outcome === "blackjack") AK.Sound.play("bigwin");
+      else if (res.outcome === "win") AK.Sound.play("win");
+      else if (res.outcome === "lose") AK.Sound.play("lose");
+      else AK.Sound.play("check");
+    }
     if (res.outcome === "win" || res.outcome === "blackjack") {
       UI.burstFromEl(App.seats[0].el, 26);
       C.react(App.seats[0].charEl, "win", 1400);
@@ -961,11 +1032,239 @@
   }
 
   /* ------------------------------------------------------------------ *
+   *  HIPODROMO (apuestas de caballos)                                  *
+   * ------------------------------------------------------------------ */
+  function startHorses(t) {
+    App.mode = "horses"; App.leaving = false;
+    App.horses = {
+      bankroll: t.buyIn, bet: Math.min(t.minBet * 2, t.buyIn), kind: "win", selected: 0,
+      race: null, timer: 0, running: false,
+      buyIn: t.buyIn, minBet: t.minBet, maxBet: t.maxBet, numHorses: t.numHorses || 6
+    };
+    $("hud-hp-level").textContent = t.name + " · " + App.city.name;
+    $("hud-hp-gold").textContent = UI.formatGold(App.state.gold);
+    $("hp-status").textContent = "Elige un caballo y apuesta.";
+    showScreen("screen-horses");
+    if (AK.Sound) AK.Sound.play("gallop");
+    UI.toast("Hipódromo de " + App.city.name + " · Banca " + UI.formatGold(t.buyIn), "info", 3000);
+    renderHorseBet();
+  }
+
+  function buildHorseTrack() {
+    const h = App.horses;
+    const track = $("hp-track"); UI.clear(track);
+    h.markers = [];
+    h.race.horses.forEach(function (hh, i) {
+      const lane = document.createElement("button");
+      lane.type = "button";
+      lane.className = "hp-lane";
+      lane.dataset.i = i;
+      lane.innerHTML =
+        '<span class="hp-num">' + (i + 1) + "</span>" +
+        '<span class="hp-name">\uD83D\uDC0E ' + hh.name + "</span>" +
+        '<span class="hp-odds">x' + hh.odds.toFixed(1) + "</span>" +
+        '<span class="hp-runway"><span class="hp-runner">\uD83C\uDFC7</span></span>';
+      lane.addEventListener("click", function () {
+        if (h.running) return;
+        h.selected = i;
+        paintHorseSelection();
+        if (AK.Sound) AK.Sound.play("hover");
+      });
+      h.markers.push(lane.querySelector(".hp-runner"));
+      track.appendChild(lane);
+    });
+    paintHorseSelection();
+  }
+
+  function paintHorseSelection() {
+    const h = App.horses; if (!h) return;
+    const track = $("hp-track"); if (!track) return;
+    Array.prototype.forEach.call(track.children, function (lane) {
+      lane.classList.toggle("selected", Number(lane.dataset.i) === h.selected);
+    });
+  }
+
+  function updateHorseMarkers() {
+    const h = App.horses;
+    const prog = h.race.progress();
+    h.markers.forEach(function (m, i) {
+      const v = Math.round(prog[i] * 88);
+      m.style.left = v + "%";
+    });
+  }
+
+  function renderHorseBet() {
+    const h = App.horses;
+    h.running = false;
+    if (!h.race || h.race.finished) h.race = new AK.HorseRace({ numHorses: h.numHorses });
+    $("hud-hp-gold").textContent = UI.formatGold(App.state.gold);
+    $("hp-status").textContent = "Banca para apostar: " + UI.formatGold(h.bankroll) + " \uD83E\uDE99";
+    buildHorseTrack();
+
+    const box = $("hp-controls"); UI.clear(box);
+
+    /* Tipo de apuesta */
+    const kinds = document.createElement("div"); kinds.className = "hp-kinds";
+    [["win", "Ganador"], ["place", "Colocado (top 3)"]].forEach(function (k) {
+      const b = makeBtn(k[1], h.kind === k[0] ? "primary" : "ghost", function () { h.kind = k[0]; renderHorseBet(); });
+      kinds.appendChild(b);
+    });
+    box.appendChild(kinds);
+
+    /* Apuesta rapida */
+    const chips = document.createElement("div"); chips.className = "chip-row";
+    [1, 2, 5, 10, 25].forEach(function (mult) {
+      const v = h.minBet * mult;
+      if (v > h.bankroll) return;
+      chips.appendChild(makeBtn("+" + UI.formatGold(v), "chip", function () {
+        h.bet = Math.max(h.minBet, Math.min(h.maxBet, Math.min(h.bankroll, h.bet + v)));
+        range.value = h.bet; label.textContent = UI.formatGold(h.bet);
+        if (AK.Sound) AK.Sound.play("chip");
+      }));
+    });
+    box.appendChild(chips);
+
+    /* Slider */
+    const wrap = document.createElement("div"); wrap.className = "raise-control";
+    const range = document.createElement("input");
+    range.type = "range"; range.min = h.minBet; range.max = Math.min(h.maxBet, Math.max(h.minBet, h.bankroll)); range.step = h.minBet;
+    range.value = Math.min(h.bet, range.max);
+    h.bet = Number(range.value);
+    const label = document.createElement("span"); label.className = "raise-value"; label.textContent = UI.formatGold(range.value);
+    range.addEventListener("input", function () { h.bet = Number(range.value); label.textContent = UI.formatGold(range.value); });
+    wrap.appendChild(range); wrap.appendChild(label);
+    box.appendChild(wrap);
+
+    const row = document.createElement("div"); row.className = "btn-row";
+    row.appendChild(makeBtn("\uD83C\uDFC1 ¡Correr!", "primary", runHorseRace));
+    row.appendChild(makeBtn("\uD83D\uDCB0 Cobrar y salir", "ghost", function () { cashOutHorses(); }));
+    row.appendChild(makeBtn("\u2753 Reglas", "ghost", showHorseGuide));
+    box.appendChild(row);
+  }
+
+  function runHorseRace() {
+    const h = App.horses;
+    if (h.running) return;
+    if (h.bet < h.minBet || h.bet > h.bankroll) { UI.toast("Apuesta no válida.", "error"); return; }
+    h.bankroll -= h.bet;
+    h.race = new AK.HorseRace({ numHorses: h.numHorses });
+    h.selected = Math.min(h.selected, h.race.horses.length - 1);
+    buildHorseTrack();
+    h.running = true;
+    UI.clear($("hp-controls"));
+    $("hp-status").textContent = "¡Arrancan! Tu apuesta: " + UI.formatGold(h.bet) + " a " + h.race.horses[h.selected].name;
+    if (AK.Sound) AK.Sound.play("bell");
+    h.timer = window.setInterval(function () {
+      const res = h.race.step();
+      updateHorseMarkers();
+      if (Math.random() < 0.35 && AK.Sound) AK.Sound.play("gallop");
+      if (res.finished) {
+        window.clearInterval(h.timer); h.timer = 0;
+        window.setTimeout(finishHorseRace, 500);
+      }
+    }, 95);
+  }
+
+  function finishHorseRace() {
+    const h = App.horses;
+    h.running = false;
+    const win = h.race.order[0];
+    const mine = h.race.horses[h.selected];
+    const payout = AK.HorseRace.payout(h.bet, mine, h.kind);
+    h.bankroll += payout;
+
+    /* Marca el ganador */
+    if (h.markers && h.markers[win.index]) h.markers[win.index].classList.add("winner");
+
+    let msg = "\uD83C\uDFC6 Ganó " + win.name + " (x" + win.odds.toFixed(1) + "). ";
+    if (mine.place === 1) msg += "¡Tu caballo GANÓ! +" + UI.formatGold(payout);
+    else if (mine.place <= 3) msg += "Tu caballo llegó " + mine.place + "º. +" + UI.formatGold(payout);
+    else msg += "Tu caballo llegó " + mine.place + "º. No hay premio.";
+    $("hp-status").textContent = msg;
+
+    if (payout > 0) {
+      if (AK.Sound) AK.Sound.play("raceWin");
+      UI.toast(mine.place === 1 ? "\uD83D\uDC0E ¡Tu caballo gana! +" + UI.formatGold(payout) : "Colocado: +" + UI.formatGold(payout), "win", 2800);
+      if (mine.place === 1) UI.burstFromCenter(30);
+    } else {
+      if (AK.Sound) AK.Sound.play("lose");
+    }
+
+    window.setTimeout(function () {
+      if (h.bankroll < h.minBet) { finishHorses(false); return; }
+      renderHorseBet();
+    }, 2200);
+  }
+
+  function showHorseGuide() {
+    UI.modal({
+      title: "\uD83D\uDC0E Apuestas de caballos",
+      html:
+        '<div class="bj-guide">' +
+          "<p class=\"bj-intro\">Elige un caballo y corre. Cada caballo tiene una <b>cuota</b> (xN) según su fuerza: pagos mayores = menos probable.</p>" +
+          '<div class="bj-table">' +
+            '<div class="bj-row"><span class="bj-hand">Ganador</span><span class="bj-act good">Cobras apuesta × cuota si tu caballo llega 1º.</span></div>' +
+            '<div class="bj-row"><span class="bj-hand">Colocado</span><span class="bj-act mid">Cobras una cuota reducida si llega entre los 3 primeros.</span></div>' +
+            '<div class="bj-row"><span class="bj-hand">Favoritos</span><span class="bj-act mid">Cuota baja = más probable, pero pagan menos.</span></div>' +
+            '<div class="bj-row"><span class="bj-hand">Sorpresas</span><span class="bj-act good">Los que nadie espera pagan muchísimo si ganan.</span></div>' +
+          "</div>" +
+        "</div>",
+      actions: [{ label: "Entendido", type: "primary" }],
+      dismissible: true
+    });
+  }
+
+  function cashOutHorses() {
+    if (App.mode !== "horses") return;
+    if (App.horses.running) { UI.toast("Espera a que termine la carrera.", "warn"); return; }
+    finishHorses(true);
+  }
+
+  function finishHorses(cashed) {
+    const t = App.tableDef;
+    const bankroll = App.horses.bankroll;
+    App.state.gold += bankroll;
+    const profit = bankroll - t.buyIn;
+    let bonus = 0;
+    if (profit > 0) { App.state.tablesWon++; bonus = Math.round(profit * 0.2); App.state.gold += bonus; }
+    AK.saveGame(App.state);
+    App.mode = null;
+    if (AK.Sound) AK.Sound.play("cash");
+    if (profit > 0) UI.burstFromCenter(30);
+
+    UI.modal({
+      title: profit > 0 ? "\uD83C\uDFC6 Buena jornada en el hipódromo" : "Dejas el hipódromo",
+      html:
+        '<div class="level-stakes">' +
+          "<span>Banca final: <b>" + UI.formatGold(bankroll) + " \uD83E\uDE99</b></span>" +
+          "<span>Entrada: <b>" + UI.formatGold(t.buyIn) + " \uD83E\uDE99</b></span>" +
+          "<span>Balance: <b style='color:" + (profit >= 0 ? "#4ade80" : "#f87171") + "'>" + (profit >= 0 ? "+" : "") + UI.formatGold(profit) + " \uD83E\uDE99</b></span>" +
+          (bonus ? "<span>Prima: <b>+" + UI.formatGold(bonus) + " \uD83E\uDE99</b></span>" : "") +
+        "</div>" +
+        '<p class="piggy">Oro total: <b>' + UI.formatGold(App.state.gold) + " \uD83E\uDE99</b></p>",
+      actions: [
+        { label: "Otra mesa", type: "gold", onClick: backToCasino },
+        { label: "Ir al mapa", type: "primary", onClick: function () { renderCityMap(); showScreen("screen-city"); } }
+      ]
+    });
+  }
+
+  function wireHorses() {
+    const back = $("btn-hp-back"), guide = $("btn-hp-guide");
+    if (back) back.addEventListener("click", cashOutHorses);
+    if (guide) guide.addEventListener("click", showHorseGuide);
+  }
+
+  /* ------------------------------------------------------------------ *
    *  SALIR                                                             *
    * ------------------------------------------------------------------ */
   function wireTableHud() {
     $("btn-leave").addEventListener("click", onLeaveClick);
-    $("btn-table-guide").addEventListener("click", UI.openGuide);
+    $("btn-table-guide").addEventListener("click", function () {
+      if (App.mode === "blackjack") UI.openBlackjackGuide();
+      else if (App.mode === "horses") showHorseGuide();
+      else UI.openGuide();
+    });
   }
 
   function onLeaveClick() {
@@ -975,6 +1274,8 @@
       else UI.toast("Te retirarás al terminar esta mano.", "info");
     } else if (App.mode === "blackjack") {
       cashOutBlackjack();
+    } else if (App.mode === "horses") {
+      cashOutHorses();
     } else {
       backToCasino();
     }
@@ -985,6 +1286,6 @@
 
   App.debug = {
     renderCityMap: renderCityMap, enterCity: enterCity, renderCasino: renderCasino,
-    startTable: startTable, showScreen: showScreen
+    startTable: startTable, showScreen: showScreen, startHorses: startHorses, runHorseRace: runHorseRace
   };
 })(window);

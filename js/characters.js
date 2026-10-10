@@ -15,7 +15,7 @@
     "#cf8f5f", "#c08248", "#ad7138", "#985a2c", "#7e4821", "#693a1b", "#542d15", "#3f2210"
   ];
   const HAIR_COLORS = [
-    "#17140f", "#221a11", "#33231716", "#3a2415", "#4a2c18", "#5a341d",
+    "#17140f", "#221a11", "#332317", "#3a2415", "#4a2c18", "#5a341d",
     "#6e3d1f", "#82491f", "#965524", "#a86a2e", "#bd7f33", "#cf9238",
     "#e0aa3e", "#e8c14b", "#d98a2c", "#c1512b", "#a84424", "#8a3620",
     "#7a4a35", "#c88a6a", "#d8d2c8", "#b9b4ad", "#8f8f96", "#5d5d66",
@@ -298,8 +298,24 @@
     Object.keys(DEFAULT_FACE).forEach(function (k) { face[k] = base[k]; });
     const el = document.createElement("div");
     el.className = "character";
-    el.style.setProperty("--accent", spec.color || pick(ACCENT_COLORS));
+    const accent1 = spec.color || pick(ACCENT_COLORS);
+    let accent2 = pick(ACCENT_COLORS);
+    if (accent2 === accent1) accent2 = "#f5c542";
+    el.style.setProperty("--accent", accent1);
+    el.style.setProperty("--accent-2", accent2);
     el.style.setProperty("--skin", face.skin);
+
+    const suit =
+      '<svg class="char-suit" viewBox="0 0 40 42" aria-hidden="true">' +
+        '<path d="M20 2 Q34 4 38 14 L38 20 L2 20 L2 14 Q6 4 20 2 Z" fill="rgba(255,255,255,.16)"/>' +
+        '<path d="M20 2 Q34 4 38 14 L38 22 Q30 15 20 15 Q10 15 2 22 L2 14 Q6 4 20 2 Z" fill="rgba(0,0,0,.28)"/>' +
+        '<path d="M12 6 L20 21 L28 6 Q24 3 20 3 Q16 3 12 6 Z" fill="rgba(0,0,0,.45)"/>' +
+        '<path d="M20 20 L17 13 L20 8 L23 13 Z" fill="var(--accent-2)"/>' +
+        '<path d="M20 20 L18.4 15 L20 13 L21.6 15 Z" fill="rgba(0,0,0,.25)"/>' +
+        '<circle cx="20" cy="25" r="1.3" fill="rgba(0,0,0,.45)"/>' +
+        '<circle cx="20" cy="30.5" r="1.3" fill="rgba(0,0,0,.45)"/>' +
+        '<circle cx="20" cy="36" r="1.3" fill="rgba(0,0,0,.45)"/>' +
+      "</svg>";
 
     el.innerHTML =
       '<div class="char-bubble"></div>' +
@@ -307,7 +323,7 @@
         '<div class="char-arm left"></div>' +
         '<div class="char-arm right"></div>' +
         '<div class="char-body">' +
-          '<div class="char-torso"></div>' +
+          '<div class="char-torso">' + suit + "</div>" +
         "</div>" +
         '<div class="char-head">' + headSVG(face) + "</div>" +
       "</div>" +

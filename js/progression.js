@@ -387,7 +387,6 @@
     } catch (e) { return null; }
   }
   function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
-
   function cityById(id) { return CITIES.find(function (c) { return c.id === id; }) || CITIES[0]; }
   function tableById(cityId, tableId) {
     const city = cityById(cityId);
@@ -398,6 +397,49 @@
     return null;
   }
   function isCityUnlocked(state, city) { return state.gold >= city.unlockGold; }
+
+  /* ------------------------------------------------------------------ *
+   *  TEMAS DE MESA POR CIUDAD (cada casino, un color distinto)          *
+   * ------------------------------------------------------------------ */
+  const TABLE_THEMES = {
+    villa:      { felt: "#0e3d2f", felt2: "#0a2c22", edge: "#061a13", rail: "#4a2f16", mark: "♠", markColor: "rgba(235,240,250,.05)" },
+    puerto:     { felt: "#0c3a49", felt2: "#082b38", edge: "#051a24", rail: "#173b4a", mark: "⚓", markColor: "rgba(180,240,255,.05)" },
+    madrid:     { felt: "#4a1414", felt2: "#360d0d", edge: "#200707", rail: "#6e3b1a", mark: "♠", markColor: "rgba(255,200,180,.06)" },
+    cartagena:  { felt: "#1c4a2e", felt2: "#123a22", edge: "#0a2415", rail: "#7a5322", mark: "❦", markColor: "rgba(255,230,150,.06)" },
+    monaco:     { felt: "#16264f", felt2: "#0f1c3d", edge: "#080f22", rail: "#28335c", mark: "♦", markColor: "rgba(200,220,255,.06)" },
+    tokio:      { felt: "#2a1040", felt2: "#1e0a30", edge: "#12051d", rail: "#3d1450", mark: "❀", markColor: "rgba(255,120,220,.09)" },
+    moscu:      { felt: "#3a0d14", felt2: "#2a080e", edge: "#160305", rail: "#4a1418", mark: "♠", markColor: "rgba(255,180,180,.06)" },
+    dubai:      { felt: "#4a3410", felt2: "#372708", edge: "#201503", rail: "#6e5320", mark: "♠", markColor: "rgba(255,225,150,.07)" },
+    newyork:    { felt: "#1a2233", felt2: "#121828", edge: "#080c16", rail: "#2b3550", mark: "★", markColor: "rgba(200,215,255,.06)" },
+    vancouver:  { felt: "#1d3a44", felt2: "#153039", edge: "#0b1e25", rail: "#284c56", mark: "♠", markColor: "rgba(190,235,245,.06)" },
+    macao:      { felt: "#4a0d1a", felt2: "#360810", edge: "#1e0409", rail: "#7a1424", mark: "龍", markColor: "rgba(255,170,170,.07)" },
+    vegas:      { felt: "#241043", felt2: "#180a30", edge: "#0d041c", rail: "#3a1a5c", mark: "♠", markColor: "rgba(230,170,255,.09)" }
+  };
+  const DEFAULT_THEME = { felt: "#0e3d2f", felt2: "#0a2c22", edge: "#061a13", rail: "#4a2f16", mark: "♠", markColor: "rgba(235,240,250,.05)" };
+  CITIES.forEach(function (city) { city.theme = TABLE_THEMES[city.id] || DEFAULT_THEME; });
+
+  /* ------------------------------------------------------------------ *
+   *  HIPODROMOS (apuestas de caballos) en varias ciudades               *
+   * ------------------------------------------------------------------ */
+  const RACETRACKS = {
+    villa:     { minBet: 10,   maxBet: 300,   buyIn: 200,   horses: 6 },
+    puerto:    { minBet: 25,   maxBet: 1000,  buyIn: 600,   horses: 6 },
+    madrid:    { minBet: 20,   maxBet: 800,   buyIn: 500,   horses: 7 },
+    monaco:    { minBet: 100,  maxBet: 5000,  buyIn: 3000,  horses: 8 },
+    dubai:     { minBet: 250,  maxBet: 9000,  buyIn: 6000,  horses: 8 },
+    macao:     { minBet: 800,  maxBet: 18000, buyIn: 15000, horses: 8 }
+  };
+  Object.keys(RACETRACKS).forEach(function (cid) {
+    const city = cityById(cid);
+    if (!city) return;
+    const cfg = RACETRACKS[cid];
+    city.casinos[0].tables.push({
+      id: cid + "_hp", game: "horses",
+      name: "Hipódromo " + city.name,
+      minBet: cfg.minBet, maxBet: cfg.maxBet, buyIn: cfg.buyIn, numHorses: cfg.horses,
+      desc: "Apuesta a tu caballo favorito y mira la carrera."
+    });
+  });
 
   AK.CHARACTERS = CHARACTERS;
   AK.CITIES = CITIES;

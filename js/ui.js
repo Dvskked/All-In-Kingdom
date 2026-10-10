@@ -264,6 +264,47 @@
   };
 
   /* ================================================================== *
+   *  GUIA DE BLACKJACK (reglas + estrategia basica)                    *
+   * ================================================================== */
+  UI.openBlackjackGuide = function () {
+    const rows = [
+      ["8 o menos", "Pedir siempre", "good"],
+      ["9", "Doblar contra 3-6, si no pedir", "mid"],
+      ["10", "Doblar contra 2-9, si no pedir", "mid"],
+      ["11", "Doblar siempre", "good"],
+      ["12", "Pedir; plantarse si croupier tiene 4-6", "mid"],
+      ["13-16", "Plantarse si croupier tiene 2-6, si no pedir", "mid"],
+      ["17 o más", "Plantarse siempre", "good"],
+      ["As + 2/3", "Doblar contra 5-6; si no pedir", "mid"],
+      ["As + 4/5", "Doblar contra 4-6; si no pedir", "mid"],
+      ["As + 6", "Doblar contra 3-6; si no pedir", "mid"],
+      ["As + 7", "Plantarse contra 2/7/8; doblar contra 3-6", "mid"],
+      ["As + 8/9", "Plantarse siempre", "good"],
+      ["Pareja de Ases", "Dividir siempre (si se permite)", "good"],
+      ["Pareja de 8", "Dividir siempre", "good"],
+      ["Pareja de 10/As", "No dividir: ya es una gran mano", "good"],
+      ["Pareja de 5", "Doblar como si fuera un 10", "mid"],
+      ["Pareja de 9", "Dividir contra 2-6 y 8-9; si no plantarse", "mid"]
+    ];
+    const body = rows.map(function (r) {
+      return '<div class="bj-row"><span class="bj-hand">' + r[0] + '</span>' +
+        '<span class="bj-act ' + r[2] + '">' + r[1] + "</span></div>";
+    }).join("");
+    UI.modal({
+      title: "\uD83C\uDCCF Guía de Blackjack (estrategia básica)",
+      html:
+        '<div class="bj-guide">' +
+          '<p class="bj-intro">Objetivo: acercarte a <b>21</b> sin pasarte y superar al croupier. ' +
+          'El croupier <b>se planta en 17</b>. Un <b>Blackjack natural paga 3:2</b>. Solo puedes <b>doblar con tus 2 primeras cartas</b>.</p>' +
+          '<div class="bj-table">' + body + "</div>" +
+          '<p class="bj-note">Consejo: si el croupier muestra una carta baja (2-6), no arriesgues; deja que se pase.</p>' +
+        "</div>",
+      actions: [{ label: "Entendido", type: "primary" }],
+      dismissible: true
+    });
+  };
+
+  /* ================================================================== *
    *  VARIOS                                                            *
    * ================================================================== */
   UI.formatGold = function (n) { return Number(n || 0).toLocaleString("es-ES"); };

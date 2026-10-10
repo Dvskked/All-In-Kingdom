@@ -118,7 +118,26 @@
     </div>
   </section>
 
+  <!-- ========================= HIPODROMO ============================= -->
+  <section id="screen-horses" class="screen">
+    <header class="table-hud">
+      <button id="btn-hp-back" class="btn ghost small">← Salir</button>
+      <div id="hud-hp-level" class="table-level">Hipódromo</div>
+      <div class="hud-right">
+        <button id="btn-hp-guide" class="btn ghost small">❓ Reglas</button>
+        <div class="hud-gold-pill">🪙 <b id="hud-hp-gold">0</b></div>
+      </div>
+    </header>
+    <div class="hp-wrap">
+      <div id="hp-status" class="hp-status">Elige un caballo y apuesta.</div>
+      <div id="hp-track" class="hp-track"></div>
+      <div id="hp-controls" class="hp-controls"></div>
+    </div>
+  </section>
+
   <!-- ============================ OVERLAYS ============================ -->
+  <button id="sound-toggle" class="sound-toggle" title="Sonido on/off">🔊</button>
+
   <div id="modal-overlay" class="modal-overlay">
     <div id="modal-box" class="modal-box"></div>
   </div>
@@ -126,9 +145,12 @@
   <div id="toast-box" class="toast-box"></div>
   <div id="fx-layer" class="fx-layer"></div>
 
+  <script src="js/guard.js"></script>
   <script src="js/deck.js"></script>
   <script src="js/poker.js"></script>
   <script src="js/blackjack.js"></script>
+  <script src="js/horses.js"></script>
+  <script src="js/sound.js"></script>
   <script src="js/ai.js"></script>
   <script src="js/progression.js"></script>
   <script src="js/characters.js"></script>

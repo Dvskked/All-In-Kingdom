@@ -4,7 +4,7 @@ global.window.addEventListener = function () {};
 
 const path = require("path");
 const base = "F:/All-In Kingdom/js/";
-["deck.js", "poker.js", "blackjack.js", "ai.js", "progression.js", "characters.js", "ui.js"].forEach(function (f) {
+["guard.js", "deck.js", "poker.js", "blackjack.js", "horses.js", "sound.js", "ai.js", "progression.js", "characters.js", "ui.js"].forEach(function (f) {
   require(path.join(base, f));
 });
 
@@ -179,6 +179,48 @@ assert(AK.Characters.headHTML().indexOf("<svg") === 0, "headHTML funciona sin ca
 /* ---- 6. UI (formato de oro) ---- */
 assert(AK.UI.formatGold(1234567) === "1.234.567", "formatGold separa miles -> " + AK.UI.formatGold(1234567));
 assert(AK.UI.formatGold(0) === "0", "formatGold con ceros -> " + AK.UI.formatGold(0));
+
+/* ---- 7. Hipodromo (carreras de caballos) ---- */
+assert(typeof AK.HorseRace === "function", "motor de caballos exportado (AK.HorseRace)");
+let raceErrors = 0, races = 0;
+for (let r = 0; r < 40; r++) {
+  const race = new AK.HorseRace({ numHorses: 6 });
+  assert(race.horses.length === 6, "carrera de 6 caballos");
+  assert(race.horses.every(function (h) { return h.odds >= 1.2 && h.odds <= 30; }), "cuotas dentro de rango");
+  let guard = 0;
+  while (!race.finished && guard++ < 200) race.step();
+  if (!race.finished) raceErrors++;
+  if (race.order.length !== 6) raceErrors++;
+  const places = race.order.map(function (h) { return h.place; });
+  if (places.join(",") !== "1,2,3,4,5,6") raceErrors++;
+  races++;
+}
+assert(raceErrors === 0, "40 carreras completas con orden valido (errores=" + raceErrors + ")");
+
+const race2 = new AK.HorseRace({ numHorses: 8 });
+assert(race2.horses.length === 8, "carrera de 8 caballos");
+while (!race2.finished) race2.step();
+const winHorse = race2.order[0];
+const loseHorse = race2.order[race2.order.length - 1];
+assert(AK.HorseRace.payout(100, winHorse, "win") > 100, "ganador paga la cuota (win) -> " + AK.HorseRace.payout(100, winHorse, "win"));
+assert(AK.HorseRace.payout(100, loseHorse, "win") === 0, "perdedor no paga (win)");
+assert(AK.HorseRace.payout(100, winHorse, "place") >= 100, "colocado (top 3) paga reducido -> " + AK.HorseRace.payout(100, winHorse, "place"));
+
+/* ---- 8. Temas de mesa por ciudad + hipodromos ---- */
+assert(AK.CITIES.every(function (c) { return c.theme && c.theme.felt && c.theme.felt2 && c.theme.edge; }), "cada ciudad tiene su tema de mesa");
+const distinctFelt = {};
+AK.CITIES.forEach(function (c) { distinctFelt[c.theme.felt] = true; });
+assert(Object.keys(distinctFelt).length >= 10, "los colores de mesa son variados -> " + Object.keys(distinctFelt).length + " distintos");
+assert(AK.tableById("villa", "villa_hp").table.game === "horses", "Villa tiene hipodromo (mesa de caballos)");
+assert(AK.CITIES.some(function (c) { return c.casinos[0].tables.some(function (t) { return t.game === "horses"; }); }), "existen mesas de caballos en la ruta");
+
+/* ---- 9. Guardia y sonido (modulos cargados) ---- */
+assert(AK.Guard && typeof AK.Guard.install === "function", "guarda anti-inspeccion disponible");
+assert(AK.Sound && typeof AK.Sound.play === "function" && typeof AK.Sound.toggle === "function", "motor de sonido disponible");
+assert(AK.Sound.isMuted() === false, "sonido empieza activado");
+AK.Sound.setMuted(true);
+assert(AK.Sound.isMuted() === true, "se puede silenciar");
+AK.Sound.setMuted(false);
 
 console.log("\n" + (failures === 0 ? "TODO OK ✅" : failures + " FALLOS ❌"));
 process.exit(failures === 0 ? 0 : 1);
