@@ -57,7 +57,7 @@
   }
 
   /* Ruido (fichas, cartas, palmas) */
-  function noise(dur, vol, filter) {
+  function noise(dur, vol, filter, delay) {
     const c = ensure(); if (!c) return;
     const len = Math.max(1, Math.floor(c.sampleRate * dur));
     const buf = c.createBuffer(1, len, c.sampleRate);
@@ -69,7 +69,7 @@
     const f = c.createBiquadFilter();
     f.type = "bandpass"; f.frequency.value = filter || 2600; f.Q.value = 0.8;
     src.connect(f); f.connect(g); g.connect(master);
-    src.start();
+    src.start(c.currentTime + (delay || 0));
   }
 
   const SOUNDS = {
@@ -97,8 +97,50 @@
     horse: function () { tone(300, 0.12, "sine", 0.12); tone(420, 0.12, "sine", 0.12, 0.1); },
     gallop: function () { for (let i = 0; i < 3; i++) noise(0.05, 0.1, 900 + i * 120); },
     bell: function () { tone(1568, 0.25, "sine", 0.16); tone(2093, 0.3, "sine", 0.1, 0.02); },
+    roulette: function () {
+      for (let i = 0; i < 14; i++) { tone(600 + i * 40, 0.03, "square", 0.05, i * 0.22); noise(0.02, 0.04, 2600 + i * 120, i * 0.22); }
+    },
     raceWin: function () { [523, 659, 784, 1046, 1318, 1568].forEach(function (f, i) { tone(f, 0.16, "square", 0.12, i * 0.07); }); }
   };
+
+  /* ================================================================== *
+   *  MUSICA DE FONDO (lounge de casino, bucle sintetizado)              *
+   * ================================================================== */
+  let musicOn = false, musicMuted = false, musicTimer = null, musicStep = 0;
+
+  /* Progresion jazzy en La menor: Am7 - Dm7 - G7 - Cmaj7 */
+  const PROG = [
+    { bass: 110.00, chord: [220.00, 261.63, 329.63, 392.00] },
+    { bass: 146.83, chord: [293.66, 349.23, 440.00, 523.25] },
+    { bass: 98.00,  chord: [196.00, 246.94, 293.66, 349.23] },
+    { bass: 130.81, chord: [261.63, 329.63, 392.00, 493.88] }
+  ];
+
+  function playBar() {
+    if (!musicOn) return;
+    const bar = PROG[musicStep % PROG.length];
+    tone(bar.bass, 1.0, "sine", 0.085, 0);
+    tone(bar.bass / 2, 1.0, "triangle", 0.04, 0);
+    bar.chord.forEach(function (f, i) { tone(f, 0.36, "triangle", 0.038, 0.14 + i * 0.24); });
+    bar.chord.slice().reverse().forEach(function (f, i) { tone(f * 2, 0.2, "sine", 0.022, 1.14 + i * 0.2); });
+    for (let h = 0; h < 8; h++) noise(0.02, 0.016, 9000, h * 0.24);
+    musicStep++;
+  }
+
+  function startMusic() {
+    if (musicMuted) return;
+    const c = ensure(); if (!c) return;
+    unlock();
+    if (musicOn) return;
+    musicOn = true; musicStep = 0;
+    playBar();
+    musicTimer = global.setInterval(playBar, 2000);
+  }
+  function stopMusic() {
+    musicOn = false;
+    if (musicTimer) { global.clearInterval(musicTimer); musicTimer = null; }
+  }
+  function toggleMusic() { if (musicOn) stopMusic(); else startMusic(); return musicOn; }
 
   /* Sonidos pre-sintetizados para no encadenar tonos erroneamente */
   const AK_Sound = {
@@ -111,7 +153,13 @@
     setMuted: function (m) { muted = !!m; },
     isMuted: function () { return muted; },
     toggle: function () { muted = !muted; if (!muted) unlock(); return muted; },
-    unlock: unlock
+    unlock: unlock,
+    startMusic: startMusic,
+    stopMusic: stopMusic,
+    toggleMusic: toggleMusic,
+    isMusicOn: function () { return musicOn; },
+    isMusicMuted: function () { return musicMuted; },
+    setMusicMuted: function (m) { musicMuted = !!m; if (musicMuted) stopMusic(); }
   };
 
   AK.Sound = AK_Sound;

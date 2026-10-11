@@ -372,6 +372,7 @@
       visited: ["villa"],
       tablesWon: 0,
       loans: 0,
+      investments: {},
       stats: { handsPlayed: 0, handsWon: 0, biggestPot: 0, bestCity: "Villa Fichas" }
     };
   }
@@ -441,6 +442,72 @@
     });
   });
 
+  /* ------------------------------------------------------------------ *
+   *  MINIJUEGOS DE CASINO (ruleta, tragaperras, baccarat y dados)       *
+   *  Cada ciudad tiene mas juegos cuanto mas avanza la ruta.            *
+   * ------------------------------------------------------------------ */
+  const MINI_GAMES = {
+    roulette: { icon: "\uD83C\uDFAF", name: "Ruleta", desc: "Haz girar la rueda. Apuesta a numeros, colores, par/impar y mas." },
+    slots:    { icon: "\uD83C\uDFB0", name: "Tragaperras", desc: "Tira de la palanca y alinea tres simbolos iguales." },
+    baccarat: { icon: "\uD83C\uDCB1", name: "Baccarat", desc: "Punto o Banca: quien se acerque a 9 gana la mano." },
+    dice:     { icon: "\uD83C\uDFB2", name: "Dados", desc: "Apuesta a grande/pequeno, par/impar, total o numero suelto." }
+  };
+
+  const CITY_MINIGAMES = {
+    villa:     { slots:    { min: 5,    max: 50,    buy: 100 } },
+    puerto:    { roulette: { min: 10,   max: 200,   buy: 400 },   slots: { min: 10,   max: 150,   buy: 300 } },
+    madrid:    { roulette: { min: 10,   max: 250,   buy: 500 },   slots: { min: 10,   max: 200,   buy: 400 } },
+    cartagena: { dice:     { min: 10,   max: 200,   buy: 400 },   slots: { min: 10,   max: 200,   buy: 400 } },
+    monaco:    { roulette: { min: 50,   max: 2000,  buy: 3000 },  baccarat: { min: 50,  max: 2000, buy: 3000 }, slots: { min: 50, max: 1500, buy: 2000 } },
+    tokio:     { roulette: { min: 100,  max: 3000,  buy: 4000 },  dice: { min: 100, max: 3000, buy: 4000 } },
+    moscu:     { slots:    { min: 100,  max: 3000,  buy: 4000 },  dice: { min: 100, max: 3000, buy: 4000 }, roulette: { min: 100, max: 3000, buy: 4000 } },
+    dubai:     { baccarat: { min: 200,  max: 5000,  buy: 6000 },  roulette: { min: 200, max: 5000, buy: 6000 }, slots: { min: 200, max: 4000, buy: 5000 } },
+    newyork:   { baccarat: { min: 400,  max: 9000,  buy: 10000 }, dice: { min: 400, max: 9000, buy: 10000 }, slots: { min: 400, max: 8000, buy: 9000 } },
+    vancouver: { roulette: { min: 400,  max: 9000,  buy: 9000 },  slots: { min: 400, max: 8000, buy: 9000 }, baccarat: { min: 400, max: 9000, buy: 9000 } },
+    macao:     { baccarat: { min: 800,  max: 16000, buy: 16000 }, dice: { min: 800, max: 16000, buy: 16000 }, roulette: { min: 800, max: 16000, buy: 16000 }, slots: { min: 800, max: 12000, buy: 14000 } },
+    vegas:     { baccarat: { min: 1000, max: 30000, buy: 30000 }, roulette: { min: 1000, max: 30000, buy: 30000 }, slots: { min: 1000, max: 20000, buy: 25000 }, dice: { min: 1000, max: 30000, buy: 30000 } }
+  };
+
+  Object.keys(CITY_MINIGAMES).forEach(function (cid) {
+    const city = cityById(cid);
+    if (!city || !city.casinos.length) return;
+    const games = CITY_MINIGAMES[cid];
+    Object.keys(games).forEach(function (g) {
+      const meta = MINI_GAMES[g];
+      const cfg = games[g];
+      city.casinos[0].tables.push({
+        id: cid + "_" + g,
+        game: g,
+        name: meta.name + " " + city.name,
+        minBet: cfg.min, maxBet: cfg.max, buyIn: cfg.buy,
+        desc: meta.desc
+      });
+    });
+  });
+
+  AK.MINI_GAMES = MINI_GAMES;
+
+  /* ------------------------------------------------------------------ *
+   *  NEGOCIOS / INVERSIONES (ingresos pasivos por ciudad)               *
+   *  Cada negocio cuesta oro y produce una renta por minuto, tambien   *
+   *  mientras no juegas. La renta inicial ronda los 20/min.            *
+   * ------------------------------------------------------------------ */
+  const INVESTMENTS = {
+    villa:     { name: "Posada del Ferrocarril",        cost: 800,    perMin: 20 },
+    puerto:    { name: "Almacén del Muelle",            cost: 2500,   perMin: 50 },
+    madrid:    { name: "Taberna de la Gran Vía",        cost: 4000,   perMin: 80 },
+    cartagena: { name: "Hotel del Caribe",              cost: 6500,   perMin: 120 },
+    monaco:    { name: "Villa del Principado",          cost: 22000,  perMin: 300 },
+    tokio:     { name: "Sala de Pachinko",              cost: 45000,  perMin: 550 },
+    moscu:     { name: "Bodega Imperial",               cost: 60000,  perMin: 700 },
+    dubai:     { name: "Torre Petrolera",               cost: 95000,  perMin: 1100 },
+    newyork:   { name: "Rascacielos de Wall Street",    cost: 160000, perMin: 1800 },
+    vancouver: { name: "Almacenes de Gastown",          cost: 220000, perMin: 2400 },
+    macao:     { name: "Flor de Neón",                  cost: 300000, perMin: 3200 },
+    vegas:     { name: "Casino propio en el Strip",     cost: 450000, perMin: 5000 }
+  };
+
+  AK.INVESTMENTS = INVESTMENTS;
   AK.CHARACTERS = CHARACTERS;
   AK.CITIES = CITIES;
   AK.defaultPlayer = defaultPlayer;

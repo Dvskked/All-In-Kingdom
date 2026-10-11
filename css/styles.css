@@ -1690,3 +1690,328 @@ input[type="text"]:focus, input[type="number"]:focus { border-color: var(--gold)
   .board-hand .card { width: 36px; height: 52px; }
   .controls .btn { padding: 8px 10px; font-size: 12px; }
 }
+
+/* ==================================================================== *
+ *  V6 · CARTAS MAS GRANDES, CONTROLES ENCIMA y MINIJUEGOS             *
+ * ==================================================================== */
+
+/* --- Cartas mas grandes y legibles --- */
+.card { width: 82px; height: 116px; }
+.card-front .rk { font-size: 19px; }
+.card-front .st { font-size: 17px; }
+.card-front .pip { font-size: 48px; }
+.card-front .pip.big { font-size: 60px; }
+.board-hand { min-height: 96px; }
+.board-hand .card { width: 60px; height: 86px; }
+.seat-opp .seat-hand .card { width: 40px; height: 58px; }
+.seat-you .seat-hand .card { width: 58px; height: 84px; }
+.card.mini { width: 46px; height: 66px; }
+.card.mini .card-front .rk { font-size: 13px; }
+.card.mini .card-front .st { font-size: 12px; }
+.card.mini .card-front .pip { font-size: 26px; }
+.card.mini .card-front .pip.big { font-size: 31px; }
+.hand { min-height: 116px; }
+
+/* --- Los controles (botones) siempre por encima de asientos/fotos --- */
+.controls { position: relative; z-index: 30; }
+.mini-controls { position: relative; z-index: 20; }
+
+/* --- Personajes y fotos: no capturan clics ni tapan botones --- */
+.character, .seat-photo, .char-head, .char-torso, .char-suit { pointer-events: none; }
+.felt { pointer-events: none; }
+.felt .btn { pointer-events: auto; }
+.seat-you .seat-photo, .seat-opp .seat-photo { pointer-events: none; }
+
+/* --- Blackjack con varias manos (split) --- */
+.seat-you .seat-hand.bj-hands { flex-wrap: wrap; gap: 6px; justify-content: center; }
+.bj-hand-row {
+  display: flex; align-items: center; gap: 3px;
+  position: relative; padding: 3px 4px; border-radius: 12px;
+  transition: box-shadow .2s, background .2s;
+}
+.bj-hand-row.active { background: rgba(245,197,66,.1); box-shadow: 0 0 0 2px var(--gold), 0 0 18px -4px var(--gold); }
+.bj-hand-row.surrendered { opacity: .5; }
+.bj-hand-tag {
+  font-size: 10px; font-weight: 700; color: #c9cdd6;
+  background: #0b0c10; border: 1px solid var(--line);
+  border-radius: 999px; padding: 1px 8px; margin-left: 2px; white-space: nowrap;
+}
+
+/* --- Boton de musica (junto al de sonido) --- */
+.music-toggle { bottom: 70px; }
+
+/* ==================================================================== *
+ *  MINIJUEGOS: estructura comun                                       *
+ * ==================================================================== */
+.mini-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px clamp(10px, 3vw, 30px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mini-controls {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 10px clamp(8px, 2.5vw, 22px) 18px;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(10,11,15,.55), rgba(6,7,10,.96));
+}
+.mini-stage { display: flex; gap: 22px; align-items: flex-start; justify-content: center; flex-wrap: wrap; width: 100%; }
+.mini-panel-title {
+  font-family: var(--font-title); letter-spacing: .5px;
+  color: var(--gold-lt); font-size: 13px; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.mini-cfg { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.mini-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #8f95a3; }
+.mini-select, .mini-num {
+  background: #0b0c10; color: #eef0f5;
+  border: 1px solid var(--line); border-radius: 9px;
+  padding: 8px 10px; font-size: 13px; min-width: 120px;
+}
+.mini-num { min-width: 84px; }
+.mini-select:focus, .mini-num:focus { border-color: var(--gold); outline: none; }
+.mini-empty { color: #6b7280; font-size: 12.5px; padding: 6px 2px; }
+.mini-betlist { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
+.mini-bet {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: #0c0d11; border: 1px solid var(--line); border-radius: 9px;
+  padding: 6px 8px 6px 12px; font-size: 12.5px; color: #dfe2e8;
+}
+.mini-bet b { color: var(--gold-lt); }
+.mini-bet .btn.small { padding: 2px 8px; font-size: 12px; line-height: 1; }
+.mini-bet-total { font-size: 12.5px; color: #aeb4c0; padding-top: 4px; }
+.mini-bet-total b { color: var(--gold-lt); }
+
+/* -------------------------------- RULETA ------------------------------ */
+.rl-stage { align-items: center; }
+.rl-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.rl-wheel { width: min(420px, 74vw); height: auto; filter: drop-shadow(0 12px 26px rgba(0,0,0,.65)); }
+.rl-rotor { transform-origin: 150px 150px; }
+.rl-rotor-wrap { line-height: 0; }
+.rl-result {
+  font-size: 36px; font-weight: 900; font-family: var(--font-title);
+  width: 74px; height: 74px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff;
+  background: #222; border: 4px solid rgba(255,255,255,.25);
+  box-shadow: 0 8px 22px rgba(0,0,0,.6);
+}
+.rl-result.red { background: #c62828; }
+.rl-result.black { background: #1a1a1a; }
+.rl-result.green { background: #0a7a3d; }
+.rl-result-sub { font-size: 12px; letter-spacing: 2px; color: #c9cdd6; font-weight: 700; }
+.rl-side { min-width: 176px; max-width: 240px; }
+.rl-hist { display: flex; flex-wrap: wrap; gap: 5px; }
+.rl-hist-chip {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 11.5px; font-weight: 800; color: #fff;
+  border: 2px solid rgba(255,255,255,.18);
+}
+.rl-hist-chip.red { background: #c62828; }
+.rl-hist-chip.black { background: #1a1a1a; }
+.rl-hist-chip.green { background: #0a7a3d; }
+
+/* ----------------------------- TRAGAPERRAS ---------------------------- */
+.sl-stage { align-items: center; }
+.sl-machine {
+  background: linear-gradient(180deg, #241a2e, #0a0710);
+  border: 3px solid #8a6a1e; border-radius: 20px; padding: 20px;
+  box-shadow: inset 0 0 46px rgba(0,0,0,.75), 0 14px 30px -14px rgba(0,0,0,.9);
+}
+.sl-reels { display: flex; gap: 12px; }
+.sl-reel {
+  width: 98px; height: 124px; border-radius: 14px;
+  background: radial-gradient(circle at 50% 40%, #1b1f2a, #0a0c11);
+  border: 2px solid #2a2d3a;
+  display: grid; place-items: center; font-size: 54px;
+  box-shadow: inset 0 0 26px rgba(0,0,0,.85);
+  overflow: hidden;
+}
+.sl-reel.spin { animation: reelSpin .12s linear infinite; }
+@keyframes reelSpin { 0% { transform: translateY(-6%); } 50% { transform: translateY(6%); } 100% { transform: translateY(-6%); } }
+.sl-msg { text-align: center; margin-top: 14px; min-height: 26px; font-weight: 800; font-size: 15px; color: #c9cdd6; }
+.sl-msg.win { color: #4ade80; text-shadow: 0 0 16px rgba(74,222,128,.5); }
+.sl-msg.lose { color: #f87171; }
+.sl-paytable { min-width: 190px; display: flex; flex-direction: column; gap: 6px; }
+.sl-pay {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: #0c0d11; border: 1px solid var(--line); border-radius: 9px;
+  padding: 6px 12px; font-size: 14px; color: #e9ebf0;
+}
+.sl-pay b { color: var(--gold-lt); font-size: 13px; }
+
+/* ------------------------------ BACCARAT ------------------------------ */
+.bac-stage { align-items: center; }
+.bac-table {
+  display: flex; flex-direction: column; gap: 16px;
+  min-width: min(560px, 92vw);
+  background: linear-gradient(180deg, rgba(14,40,30,.7), rgba(6,16,12,.85));
+  border: 2px solid rgba(245,197,66,.22); border-radius: 18px; padding: 18px 20px;
+}
+.bac-hand { display: flex; flex-direction: column; gap: 8px; }
+.bac-cards { min-height: 104px; }
+.bac-cards .card { width: 60px; height: 86px; }
+.bac-side { font-family: var(--font-title); letter-spacing: 1px; }
+.bac-side.player { color: #6ca9ff; }
+.bac-side.banker { color: #ff7b7b; }
+.bac-msg { text-align: center; font-weight: 700; font-size: 14px; color: #c9cdd6; min-height: 22px; }
+.bac-msg.win { color: #4ade80; }
+.bac-msg.lose { color: #f87171; }
+
+/* -------------------------------- DADOS ------------------------------- */
+.dice-stage { align-items: center; }
+.dice-arena { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.dice-row { display: flex; gap: 18px; }
+.die {
+  width: 92px; height: 92px; border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #d6d6d6);
+  color: #171717; display: grid; place-items: center; font-size: 58px;
+  border: 2px solid #b9b9b9;
+  box-shadow: 0 10px 24px -6px rgba(0,0,0,.7), inset 0 -4px 8px rgba(0,0,0,.12);
+}
+.die.rolling { animation: dieShake .16s linear infinite; }
+@keyframes dieShake {
+  0% { transform: rotate(-6deg) translateY(-3px); }
+  50% { transform: rotate(6deg) translateY(3px); }
+  100% { transform: rotate(-6deg) translateY(-3px); }
+}
+.dice-msg { text-align: center; font-weight: 800; font-size: 15px; color: #c9cdd6; min-height: 24px; }
+.dice-msg.win { color: #4ade80; }
+.dice-msg.lose { color: #f87171; }
+.dice-side { min-width: 190px; }
+
+@media (max-width: 640px) {
+  .sl-reel { width: 76px; height: 96px; font-size: 42px; }
+  .die { width: 68px; height: 68px; font-size: 42px; }
+  .bac-table { min-width: 0; width: 100%; }
+  .rl-wheel { width: min(320px, 82vw); }
+  .mini-body { padding: 12px 10px; align-items: flex-start; }
+  .music-toggle { bottom: 58px; }
+}
+
+/* ==================================================================== *
+ *  V7 · CARTAS LEGIBLES, MESA AJUSTADA A PANTALLA y NEGOCIOS         *
+ * ==================================================================== */
+
+/* --- Cartas mas grandes --- */
+.card { width: 88px; height: 124px; }
+.card-front .corner.tl { top: 7px; left: 8px; }
+.card-front .corner.br { bottom: 7px; right: 8px; }
+.card-front .rk { font-size: 23px; letter-spacing: .5px; }
+.card-front .st { font-size: 20px; margin-top: 2px; }
+.card-front .pip { font-size: 56px; }
+.card-front .pip.big { font-size: 68px; }
+
+/* --- Rango y palo en color solido de alto contraste (se leen siempre) ---
+   El degradado anterior dejaba los tonos oscuros casi invisibles sobre
+   el fondo negro de la carta; ahora usamos color plano luminoso. */
+.card[data-color="gold"] .card-front .rk,
+.card[data-color="gold"] .card-front .st {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: #ffe79a;
+  -webkit-text-fill-color: #ffe79a;
+  text-shadow: 0 1px 2px rgba(0,0,0,.95), 0 0 6px rgba(245,197,66,.35);
+  filter: none;
+}
+.card[data-color="silver"] .card-front .rk,
+.card[data-color="silver"] .card-front .st {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: #f4f7fa;
+  -webkit-text-fill-color: #f4f7fa;
+  text-shadow: 0 1px 2px rgba(0,0,0,.95), 0 0 6px rgba(213,221,226,.3);
+  filter: none;
+}
+/* El simbolo central (pip) mantiene el brillo metalico pero con mas contraste */
+.card[data-color="gold"] .card-front .pip { filter: drop-shadow(0 2px 3px rgba(0,0,0,.85)) drop-shadow(0 0 6px rgba(245,197,66,.5)); }
+.card[data-color="silver"] .card-front .pip { filter: drop-shadow(0 2px 3px rgba(0,0,0,.85)) drop-shadow(0 0 6px rgba(213,221,226,.45)); }
+
+.board-hand { min-height: 104px; }
+.board-hand .card { width: 66px; height: 94px; }
+.seat-opp .seat-hand .card { width: 48px; height: 68px; }
+.seat-you .seat-hand .card { width: 66px; height: 94px; }
+.card.mini { width: 52px; height: 74px; }
+.card.mini .card-front .rk { font-size: 15px; }
+.card.mini .card-front .st { font-size: 13px; }
+.card.mini .card-front .pip { font-size: 31px; }
+.card.mini .card-front .pip.big { font-size: 37px; }
+.hand { min-height: 124px; }
+
+/* --- La mesa se escala sola para caber SIEMPRE en la pantalla ---
+   Sin esto hacia falta bajar el zoom al 70% para ver las cartas. */
+.felt {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.felt-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* --- Pantalla de negocios / inversiones --- */
+.invest-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  margin-top: 18px;
+}
+.invest-card {
+  display: flex; flex-direction: column; gap: 8px;
+  background: linear-gradient(180deg, rgba(22,24,31,.96), rgba(10,11,15,.96));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+.invest-card.owned { border-color: var(--gold-dk); box-shadow: 0 0 18px -6px var(--gold), var(--shadow); }
+.invest-card.locked { opacity: .55; }
+.invest-head { display: flex; align-items: center; gap: 10px; }
+.invest-flag { font-size: 22px; }
+.invest-name { font-weight: 800; font-size: 15px; }
+.invest-city { font-size: 12px; color: #9aa0ad; }
+.invest-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: #c9cdd6; }
+.invest-row b { color: var(--gold-lt); }
+.invest-owned { color: #4ade80; font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.invest-note { font-size: 12px; color: #8f95a3; margin-top: 2px; }
+.invest-help {
+  margin-top: 18px; padding: 14px 16px;
+  background: rgba(245,197,66,.06);
+  border: 1px solid rgba(245,197,66,.28);
+  border-radius: 14px;
+}
+.invest-help p { margin: 0 0 10px; font-size: 13px; color: #cfd3db; line-height: 1.5; }
+
+@media (max-width: 640px) {
+  .card { width: 62px; height: 88px; }
+  .card-front .rk { font-size: 17px; }
+  .card-front .st { font-size: 15px; }
+  .card-front .pip { font-size: 40px; }
+  .card-front .pip.big { font-size: 48px; }
+  .board-hand .card { width: 50px; height: 72px; }
+  .seat-you .seat-hand .card { width: 52px; height: 74px; }
+  .seat-opp .seat-hand .card { width: 38px; height: 54px; }
+  .hand { min-height: 88px; }
+}
+@media (max-width: 420px) {
+  .card { width: 52px; height: 74px; }
+  .board-hand .card { width: 44px; height: 62px; }
+  .seat-you .seat-hand .card { width: 46px; height: 66px; }
+  .seat-opp .seat-hand .card { width: 34px; height: 48px; }
+}
+

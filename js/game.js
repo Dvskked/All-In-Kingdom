@@ -18,21 +18,33 @@
     seats: [],                 /* asientos visuales */
     humanResolve: null, leaving: false,
     painted: { holes: false, community: 0 },
-    bj: { bankroll: 0, bet: 0, settled: false, dealerRevealed: false, buyIn: 0 },
-    horses: { bankroll: 0, bet: 0, kind: "win", selected: 0, race: null, timer: 0, running: false, buyIn: 0, minBet: 0, maxBet: 0, numHorses: 6 }
+    bj: { bankroll: 0, bet: 0, settled: false, dealerRevealed: false, buyIn: 0, minBet: 0, maxBet: 0 },
+    horses: { bankroll: 0, bet: 0, kind: "win", selected: 0, race: null, timer: 0, running: false, buyIn: 0, minBet: 0, maxBet: 0, numHorses: 6 },
+    roulette: null, slots: null, baccarat: null, dice: null
   };
   global.AllInApp = App;
 
   const MUTE_KEY = "allin_kingdom_muted";
+  const MUSIC_KEY = "allin_kingdom_music";
 
   function wireSound() {
     const btn = $("sound-toggle");
+    const mbtn = $("music-toggle");
     const saved = (function () { try { return localStorage.getItem(MUTE_KEY) === "1"; } catch (e) { return false; } })();
-    if (AK.Sound) AK.Sound.setMuted(saved);
+    const savedMusic = (function () { try { return localStorage.getItem(MUSIC_KEY); } catch (e) { return null; } })();
+    if (AK.Sound) {
+      AK.Sound.setMuted(saved);
+      AK.Sound.setMusicMuted(savedMusic === "0");
+    }
     function paint() {
       if (!btn || !AK.Sound) return;
       btn.textContent = AK.Sound.isMuted() ? "\uD83D\uDD07" : "\uD83D\uDD0A";
       btn.classList.toggle("muted", AK.Sound.isMuted());
+    }
+    function paintMusic() {
+      if (!mbtn || !AK.Sound) return;
+      mbtn.textContent = AK.Sound.isMusicMuted() ? "\uD83D\uDD07" : "\uD83C\uDFB5";
+      mbtn.classList.toggle("muted", AK.Sound.isMusicMuted());
     }
     if (btn) btn.addEventListener("click", function () {
       if (!AK.Sound) return;
@@ -40,7 +52,21 @@
       try { localStorage.setItem(MUTE_KEY, m ? "1" : "0"); } catch (e) {}
       paint();
     });
-    paint();
+    if (mbtn) mbtn.addEventListener("click", function () {
+      if (!AK.Sound) return;
+      AK.Sound.setMusicMuted(!AK.Sound.isMusicMuted());
+      if (!AK.Sound.isMusicMuted()) AK.Sound.startMusic();
+      try { localStorage.setItem(MUSIC_KEY, AK.Sound.isMusicMuted() ? "0" : "1"); } catch (e) {}
+      paintMusic();
+    });
+    paint(); paintMusic();
+
+    /* La musica solo puede sonar tras una interaccion del usuario. */
+    function kickMusic() {
+      if (AK.Sound && !AK.Sound.isMusicMuted()) AK.Sound.startMusic();
+    }
+    window.addEventListener("pointerdown", kickMusic, { once: true });
+    window.addEventListener("keydown", kickMusic, { once: true });
   }
 
   /* ------------------------------------------------------------------ *
@@ -50,6 +76,40 @@
     Array.prototype.forEach.call(document.querySelectorAll(".screen"), function (s) {
       s.classList.toggle("active", s.id === id);
     });
+    if (id === "screen-table") scheduleFit();
+    if (id === "screen-city") investTick();
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  AJUSTE AUTOMATICO DE LA MESA                                       *
+   *  Escala el contenido de la mesa para que las cartas quepan siempre  *
+   *  en pantalla, sin tener que reducir el zoom del navegador.          *
+   * ------------------------------------------------------------------ */
+  let fitRaf = null;
+  function fitFelt() {
+    const felt = $("felt"); if (!felt) return;
+    const inner = felt.querySelector(".felt-inner"); if (!inner) return;
+    inner.style.transform = "scale(1)";
+    const cw = inner.clientWidth, ch = inner.clientHeight;
+    const sw = inner.scrollWidth, sh = inner.scrollHeight;
+    if (!cw || !ch || !sw || !sh) return;
+    const s = Math.min(1, cw / sw, ch / sh);
+    if (s < 0.999) inner.style.transform = "scale(" + s.toFixed(4) + ")";
+  }
+  function scheduleFit() {
+    if (fitRaf) {
+      if (window.cancelAnimationFrame) cancelAnimationFrame(fitRaf); else clearTimeout(fitRaf);
+    }
+    if (window.requestAnimationFrame) fitRaf = requestAnimationFrame(fitFelt);
+    else fitRaf = setTimeout(fitFelt, 16);
+  }
+  function initFeltFit() {
+    const felt = $("felt"); if (!felt) return;
+    if (window.MutationObserver) {
+      new MutationObserver(scheduleFit).observe(felt, { childList: true, subtree: true });
+    }
+    if (window.ResizeObserver) new ResizeObserver(scheduleFit).observe(felt);
+    window.addEventListener("resize", scheduleFit);
   }
 
   /* ------------------------------------------------------------------ *
@@ -62,6 +122,9 @@
     wireMap();
     wireTableHud();
     wireHorses();
+    wireMini();
+    initFeltFit();
+    startInvestLoop();
 
     /* Sonido en cualquier boton + desbloqueo de audio */
     document.addEventListener("click", function (e) {
@@ -69,7 +132,14 @@
     }, true);
 
     const saved = AK.loadGame();
-    if (saved) { App.state = saved; renderCityMap(); showScreen("screen-city"); }
+    if (saved) {
+      App.state = saved;
+      if (!App.state.investments) App.state.investments = {};
+      const earned = investTick();
+      renderCityMap();
+      showScreen("screen-city");
+      if (earned > 0) UI.toast("Tus negocios ganaron " + UI.formatGold(earned) + " 🪙 mientras estabas fuera.", "gold", 3600);
+    }
     else showScreen("screen-profile");
   }
 
@@ -183,6 +253,8 @@
       });
     });
     $("btn-city-guide").addEventListener("click", UI.openGuide);
+    $("btn-invest").addEventListener("click", openInvest);
+    $("btn-invest-back").addEventListener("click", function () { renderCityMap(); showScreen("screen-city"); });
   }
 
   function renderCityMap() {
@@ -229,6 +301,15 @@
           "</div>" +
         "</div>";
 
+      const skyEl = card.querySelector(".city-sky");
+      const art = AK.CityArt && AK.CityArt.uri(city.id);
+      if (art && skyEl) {
+        skyEl.style.backgroundImage = "url('" + art + "')";
+        skyEl.style.backgroundSize = "cover";
+        skyEl.style.backgroundPosition = "center";
+        skyEl.style.opacity = unlocked ? "1" : ".7";
+      }
+
       card.addEventListener("click", function () { enterCity(city.id); });
       wrap.appendChild(card);
     });
@@ -247,14 +328,153 @@
   }
 
   /* ------------------------------------------------------------------ *
+   *  NEGOCIOS / INVERSIONES (ingresos pasivos)                          *
+   * ------------------------------------------------------------------ */
+  function refreshGold() {
+    const s = App.state; if (!s) return;
+    const txt = UI.formatGold(s.gold);
+    ["hud-gold", "casino-gold", "hud-gold-table", "mini-gold", "hud-hp-gold", "invest-gold"].forEach(function (id) {
+      const el = $(id); if (el) el.textContent = txt;
+    });
+  }
+
+  /** Suma el oro generado por los negocios desde la ultima vez. */
+  function investTick() {
+    const s = App.state;
+    if (!s || !s.investments) return 0;
+    const now = Date.now();
+    let earned = 0;
+    Object.keys(s.investments).forEach(function (cid) {
+      const cfg = AK.INVESTMENTS && AK.INVESTMENTS[cid];
+      const it = s.investments[cid];
+      if (!cfg || !it) return;
+      if (!it.last) { it.last = now; return; }
+      const elapsed = now - it.last;
+      const gain = Math.floor(elapsed / 60000 * cfg.perMin);
+      if (gain > 0) {
+        earned += gain;
+        it.last += Math.round(gain / cfg.perMin * 60000);
+      }
+    });
+    if (earned > 0) {
+      s.gold += earned;
+      AK.saveGame(s);
+      refreshGold();
+      const inv = $("invest-list");
+      if (inv && $("screen-invest").classList.contains("active")) renderInvest();
+    }
+    return earned;
+  }
+
+  function startInvestLoop() {
+    window.setInterval(function () { investTick(); }, 5000);
+  }
+
+  function renderInvest() {
+    const s = App.state;
+    if (!s) return;
+    if (!s.investments) s.investments = {};
+    const list = $("invest-list");
+    UI.clear(list);
+
+    AK.CITIES.forEach(function (city) {
+      const cfg = AK.INVESTMENTS && AK.INVESTMENTS[city.id];
+      if (!cfg) return;
+      const owned = !!s.investments[city.id];
+      const unlocked = AK.isCityUnlocked(s, city);
+
+      const card = document.createElement("div");
+      card.className = "invest-card" + (owned ? " owned" : "") + (unlocked ? "" : " locked");
+
+      const head = '<div class="invest-head"><span class="invest-flag">' + city.flag + "</span>" +
+        '<span><span class="invest-name">' + cfg.name + "</span><br>" +
+        '<span class="invest-city">' + city.name + "</span></span></div>";
+
+      if (owned) {
+        card.innerHTML = head +
+          '<div class="invest-row"><span>Renta</span><b>+' + UI.formatGold(cfg.perMin) + " 🪙 / min</b></div>" +
+          '<div class="invest-owned">✅ Activo · generando oro sin parar</div>';
+      } else if (!unlocked) {
+        card.innerHTML = head +
+          '<div class="invest-row"><span>Renta</span><b>+' + UI.formatGold(cfg.perMin) + " 🪙 / min</b></div>" +
+          '<div class="invest-note">🔒 Se desbloquea al viajar a ' + city.name + " (" + UI.formatGold(city.unlockGold) + " 🪙).</div>";
+      } else {
+        card.innerHTML = head +
+          '<div class="invest-row"><span>Coste</span><b>' + UI.formatGold(cfg.cost) + " 🪙</b></div>" +
+          '<div class="invest-row"><span>Renta</span><b>+' + UI.formatGold(cfg.perMin) + " 🪙 / min</b></div>";
+        const btn = makeBtn("Comprar negocio", s.gold >= cfg.cost ? "gold" : "ghost", function () {
+          buyInvestment(city.id);
+        });
+        btn.disabled = s.gold < cfg.cost;
+        btn.classList.add("small");
+        card.appendChild(btn);
+      }
+      list.appendChild(card);
+    });
+
+    const help = $("invest-help");
+    if (help) {
+      const broke = s.gold < 100;
+      help.innerHTML =
+        "<p>Los negocios producen oro cada minuto, incluso con el juego cerrado. " +
+        "Vuelve más tarde y lo recibirás acumulado.</p>" +
+        (broke
+          ? '<button id="btn-loan" class="btn danger small">💰 Pedir préstamo urgente (+500 🪙, deuda +550)</button>'
+          : (s.loans > 0 ? "<p>Deuda pendiente: <b>" + UI.formatGold(s.loans) + " 🪙</b></p>" : ""));
+      const loan = $("btn-loan");
+      if (loan) loan.addEventListener("click", takeLoan);
+    }
+    refreshGold();
+  }
+
+  function buyInvestment(cityId) {
+    const s = App.state;
+    const cfg = AK.INVESTMENTS[cityId];
+    if (!cfg || !s) return;
+    if (s.investments[cityId]) { UI.toast("Ya tienes ese negocio.", "info"); return; }
+    if (s.gold < cfg.cost) { UI.toast("No te llega el oro.", "error"); return; }
+    s.gold -= cfg.cost;
+    s.investments[cityId] = { last: Date.now() };
+    AK.saveGame(s);
+    refreshGold();
+    if (AK.Sound) AK.Sound.play("cash");
+    UI.toast("Negocio comprado: " + cfg.name + " (+" + UI.formatGold(cfg.perMin) + " 🪙/min)", "gold", 3000);
+    renderInvest();
+  }
+
+  function takeLoan() {
+    const s = App.state; if (!s) return;
+    s.gold += 500;
+    s.loans = (s.loans || 0) + 550;
+    AK.saveGame(s);
+    if (AK.Sound) AK.Sound.play("cash");
+    UI.toast("Préstamo recibido: +500 🪙. Deuda: " + UI.formatGold(s.loans) + " 🪙", "warn", 3200);
+    renderInvest();
+  }
+
+  function openInvest() {
+    investTick();
+    renderInvest();
+    showScreen("screen-invest");
+  }
+
+  /* ------------------------------------------------------------------ *
    *  CASINO (seleccion de mesa)                                        *
    * ------------------------------------------------------------------ */
   function renderCasino(city) {
     App.city = city;
     $("casino-city").textContent = city.flag + " " + city.name;
     $("casino-gold").textContent = UI.formatGold(App.state.gold);
-    $("casino-bg").style.background =
-      "linear-gradient(180deg," + city.sky[0] + "," + city.sky[1] + " 45%," + city.sky[2] + ")";
+    const bg = $("casino-bg");
+    const bgArt = AK.CityArt && AK.CityArt.uri(city.id);
+    if (bgArt) {
+      bg.style.backgroundColor = city.sky[2];
+      bg.style.backgroundImage = "linear-gradient(180deg, rgba(8,9,11,.35), rgba(8,9,11,.9)), url('" + bgArt + "')";
+      bg.style.backgroundSize = "cover";
+      bg.style.backgroundPosition = "center";
+    } else {
+      bg.style.background = "linear-gradient(180deg," + city.sky[0] + "," + city.sky[1] + " 45%," + city.sky[2] + ")";
+    }
 
     const wrap = $("casino-body");
     UI.clear(wrap);
@@ -273,16 +493,19 @@
         const isPoker = t.game === "poker";
         const isHp = t.game === "horses";
         const affordable = App.state.gold >= t.buyIn;
-        let icon, stats;
+        const bet = "<span>\uD83D\uDCB0 Apuesta " + UI.formatGold(t.minBet) + "–" + UI.formatGold(t.maxBet) + "</span>";
+        const GAME_ICON = {
+          poker: "\u2660\u2665", blackjack: "\uD83C\uDCCF", horses: "\uD83D\uDC0E",
+          roulette: "\uD83C\uDFAF", slots: "\uD83C\uDFB0", baccarat: "\uD83C\uDCB1", dice: "\uD83C\uDFB2"
+        };
+        let icon = GAME_ICON[t.game] || "\uD83C\uDFB0";
+        let stats;
         if (isPoker) {
-          icon = "\u2660\u2665";
           stats = "<span>\uD83D\uDC65 " + t.seats + " jugadores</span><span>\uD83D\uDD3A Ciegas " + UI.formatGold(t.smallBlind) + "/" + UI.formatGold(t.bigBlind) + "</span>";
         } else if (isHp) {
-          icon = "\uD83D\uDC0E";
-          stats = "<span>\uD83C\uDFC1 " + (t.numHorses || 6) + " caballos</span><span>\uD83D\uDCB0 Apuesta " + UI.formatGold(t.minBet) + "–" + UI.formatGold(t.maxBet) + "</span>";
+          stats = "<span>\uD83C\uDFC1 " + (t.numHorses || 6) + " caballos</span>" + bet;
         } else {
-          icon = "\uD83C\uDCCF";
-          stats = "<span>\uD83D\uDCB0 Apuesta " + UI.formatGold(t.minBet) + "–" + UI.formatGold(t.maxBet) + "</span>";
+          stats = bet;
         }
         card.innerHTML =
           '<div class="table-icon">' + icon + "</div>" +
@@ -292,7 +515,7 @@
             stats +
             "<span>\uD83C\uDF9F Entrada " + UI.formatGold(t.buyIn) + " \uD83E\uDE99</span>" +
           "</div>" +
-          '<div class="table-cta">' + (affordable ? (isHp ? "Apostar \u2192" : "Sentarse \u2192") : "\uD83D\uDD12 Falta oro") + "</div>";
+          '<div class="table-cta">' + (affordable ? (isPoker ? "Sentarse \u2192" : "Jugar \u2192") : "\uD83D\uDD14 Falta oro") + "</div>";
         if (!affordable) card.classList.add("locked");
         card.addEventListener("click", function () {
           if (App.state.gold < t.buyIn) {
@@ -334,6 +557,9 @@
     UI.clear(felt);
     App.seats = [];
 
+    const inner = document.createElement("div");
+    inner.className = "felt-inner";
+
     const oppRow = document.createElement("div");
     oppRow.className = "felt-opponents";
     const youRow = document.createElement("div");
@@ -347,9 +573,10 @@
       '<div id="hand-name" class="hand-name"></div>' +
       '<div id="pot-chips" class="pot-chips"></div>';
 
-    felt.appendChild(oppRow);
-    felt.appendChild(center);
-    felt.appendChild(youRow);
+    inner.appendChild(oppRow);
+    inner.appendChild(center);
+    inner.appendChild(youRow);
+    felt.appendChild(inner);
 
     seatSpecs.forEach(function (spec, i) {
       const el = document.createElement("div");
@@ -391,6 +618,8 @@
       if (spec.isHuman) youRow.appendChild(el);
       else oppRow.appendChild(el);
     });
+
+    scheduleFit();
   }
 
   function renderSeatChips(s, value) {
@@ -443,6 +672,7 @@
     if (t.game === "poker") startPoker(t);
     else if (t.game === "blackjack") startBlackjack(t);
     else if (t.game === "horses") startHorses(t);
+    else startMini(t);
   }
 
   function applyTableTheme(theme) {
@@ -807,7 +1037,7 @@
    * ------------------------------------------------------------------ */
   function startBlackjack(t) {
     App.mode = "blackjack"; App.leaving = false;
-    App.bj = { bankroll: t.buyIn, bet: Math.min(t.minBet * 2, t.buyIn), settled: false, dealerRevealed: false, buyIn: t.buyIn, minBet: t.minBet, maxBet: t.maxBet };
+    App.bj = { bankroll: t.buyIn, bet: Math.min(t.minBet * 2, t.buyIn), settled: false, dealerRevealed: false, buyIn: t.buyIn, minBet: t.minBet, maxBet: t.maxBet, insuranceBet: 0 };
     App.engine = new AK.BlackjackTable({ numDecks: 6, dealerStand17: true, humanName: App.state.name });
 
     const specs = [
@@ -817,6 +1047,7 @@
     $("hud-level").textContent = t.name + " · " + App.city.name;
     applyTableTheme(App.city.theme);
     buildFelt(specs);
+    App.seats[0].cardsEl.classList.add("bj-hands");
     $("controls").className = "controls";
     showScreen("screen-table");
     updateHudGold();
@@ -830,6 +1061,7 @@
   const DEALER_FACE = { skin: "#e6bb8b", hair: "bun", hairColor: "#d8d2c8", eyes: "#3a548a", mouth: "smirk", brow: "soft", facial: "none", acc: "earring" };
 
   function renderBjBet() {
+    App.bj.settled = false;
     paintBjValues();
     $("pot-label").textContent = "Banca " + UI.formatGold(App.bj.bankroll);
     $("hand-name").textContent = "Apuesta mín " + UI.formatGold(App.bj.minBet);
@@ -870,9 +1102,13 @@
   }
 
   function paintBjValues() {
-    if (!App.engine.playerHand) return;
-    const pv = App.engine.playerValue(), dv = App.engine.dealerValue();
-    showAction(0, "Mano: " + pv.total);
+    if (!App.engine.hands || !App.engine.hands.length) return;
+    const parts = App.engine.hands.map(function (h, i) {
+      const v = AK.handValue(h.cards);
+      return (App.engine.hands.length > 1 ? "M" + (i + 1) + " " : "Mano ") + v.total + (h.bust ? " \u2717" : "");
+    });
+    showAction(0, parts.join("   "));
+    const dv = App.engine.dealerValue();
     showAction(1, "Dealer: " + (App.bj.dealerRevealed ? dv.total : "?"));
   }
 
@@ -884,73 +1120,128 @@
   function dealBlackjack() {
     if (App.bj.bet < App.bj.minBet || App.bj.bet > App.bj.bankroll) { UI.toast("Apuesta no válida.", "error"); return; }
     App.bj.bankroll -= App.bj.bet;
-    App.bj.settled = false; App.bj.dealerRevealed = false;
+    App.bj.settled = false; App.bj.dealerRevealed = false; App.bj.insuranceBet = 0;
     clearBjCards();
     const res = App.engine.newRound(App.bj.bet);
     setStack(0, App.bj.bankroll);
     $("pot-label").textContent = "Apuesta " + UI.formatGold(App.bj.bet);
-    dealBjCards();
-    if (res.type === "result") resolveBj(res); else renderBjPlay();
-  }
-
-  function dealBjCards() {
-    /* Croupier: primera visible, segunda oculta (indice 1) */
-    App.engine.dealerHand.forEach(function (c, i) {
-      UI.dealCard(App.seats[1].cardsEl, c, { down: i !== 0 });
-    });
-    App.engine.playerHand.forEach(function (c) {
-      UI.dealCard(App.seats[0].cardsEl, c, { down: false });
-    });
+    renderBjDealer();
+    renderBjPlayer();
     if (AK.Sound) AK.Sound.play("deal");
     paintBjValues();
+    if (res.type === "result") {
+      App.bj.pending = res;
+      revealDealer();
+      UI.sleep(900).then(function () { settleBj(res); });
+    } else {
+      renderBjPlay();
+    }
+  }
+
+  /* Croupier: primera carta visible, segunda oculta hasta revelar. */
+  function renderBjDealer() {
+    const box = App.seats[1].cardsEl; UI.clear(box);
+    App.engine.dealerHand.forEach(function (c, i) {
+      UI.dealCard(box, c, { down: i !== 0 && !App.bj.dealerRevealed });
+    });
+  }
+  function syncBjDealer() {
+    const box = App.seats[1].cardsEl;
+    const have = box.querySelectorAll(".card").length;
+    for (let i = have; i < App.engine.dealerHand.length; i++) UI.dealCard(box, App.engine.dealerHand[i], { down: false });
+  }
+
+  function renderBjPlayer() {
+    const box = App.seats[0].cardsEl; UI.clear(box);
+    App.engine.hands.forEach(function (h, hi) {
+      const row = document.createElement("div");
+      row.className = "bj-hand-row" + (App.engine.state === "player" && hi === App.engine.activeHand ? " active" : "");
+      if (h.surrendered) row.classList.add("surrendered");
+      h.cards.forEach(function (c) { UI.dealCard(row, c, { down: false }); });
+      const tag = document.createElement("span");
+      tag.className = "bj-hand-tag";
+      const v = AK.handValue(h.cards);
+      tag.textContent = (App.engine.hands.length > 1 ? "M" + (hi + 1) + " · " : "") + v.total +
+        (h.doubled ? " x2" : "") + (h.bust ? " \u2717" : "") + (h.surrendered ? " rendido" : "");
+      row.appendChild(tag);
+      box.appendChild(row);
+    });
   }
 
   function renderBjPlay() {
-    const box = $("controls"); UI.clear(box);
+    const box = $("controls"); UI.clear(box); box.className = "controls";
+
+    if (App.engine.insuranceOffered && !App.bj.insuranceBet) {
+      const irow = document.createElement("div"); irow.className = "btn-row";
+      const base = App.engine.baseBet || App.bj.bet;
+      irow.appendChild(makeBtn("\uD83D\uDEE1 Aceptar seguro (" + UI.formatGold(Math.floor(base / 2)) + ")", "gold", bjInsurance));
+      irow.appendChild(makeBtn("Sin seguro", "ghost", bjNoInsurance));
+      box.appendChild(irow);
+    }
+
     const row = document.createElement("div");
     row.className = "btn-row";
+    const h = App.engine.hands[App.engine.activeHand];
     row.appendChild(makeBtn("Pedir", "primary", bjHit));
     row.appendChild(makeBtn("Plantarse", "gold", bjStand));
-    if (App.engine.canDouble()) row.appendChild(makeBtn("Doblar", "danger", bjDouble));
+    if (h && App.engine.canDouble() && App.bj.bankroll >= h.bet) row.appendChild(makeBtn("Doblar", "danger", bjDouble));
+    if (h && App.engine.canSplit() && App.bj.bankroll >= h.bet) row.appendChild(makeBtn("Dividir", "gold", bjSplit));
+    if (App.engine.canSurrender()) row.appendChild(makeBtn("Rendirse", "ghost", bjSurrender));
     row.appendChild(makeBtn("\uD83C\uDCCF Guía", "ghost", UI.openBlackjackGuide));
     box.appendChild(row);
   }
 
-  function bjHit() {
-    if (App.engine.state !== "player") return;
-    const res = App.engine.hit();
-    syncBjCards();
-    paintBjValues();
-    if (res.type === "result") resolveBj(res); else renderBjPlay();
-  }
-  function bjStand() { resolveBj(App.engine.stand()); }
-  function bjDouble() {
-    if (!App.engine.canDouble() || App.bj.bet > App.bj.bankroll) { UI.toast("No puedes doblar.", "error"); return; }
-    App.bj.bankroll -= App.bj.bet;
-    const res = App.engine.double();
-    syncBjCards();
+  function afterBjAction(res) {
+    if (res && res.type === "invalid") { UI.toast("Acción no válida.", "error"); renderBjPlay(); return; }
     setStack(0, App.bj.bankroll);
-    resolveBj(res);
+    renderBjPlayer();
+    syncBjDealer();
+    if (AK.Sound && res && (res.type === "hit" || res.type === "split")) AK.Sound.play("deal");
+    paintBjValues();
+    if (res && res.type === "result") {
+      App.bj.pending = res;
+      revealDealer();
+      paintBjValues();
+      UI.sleep(900).then(function () { settleBj(res); });
+    } else {
+      if (App.engine.insuranceOffered && !App.bj.insuranceBet) {
+        /* ya se muestra el prompt de seguro en renderBjPlay */
+      }
+      renderBjPlay();
+    }
   }
 
-  function syncBjCards() {
-    const pCards = App.seats[0].cardsEl.querySelectorAll(".card").length;
-    for (let i = pCards; i < App.engine.playerHand.length; i++) UI.dealCard(App.seats[0].cardsEl, App.engine.playerHand[i], { down: false });
-    const dCards = App.seats[1].cardsEl.querySelectorAll(".card").length;
-    for (let i = dCards; i < App.engine.dealerHand.length; i++) UI.dealCard(App.seats[1].cardsEl, App.engine.dealerHand[i], { down: false });
+  function bjHit() { if (App.engine.state !== "player") return; afterBjAction(App.engine.hit()); }
+  function bjStand() { if (App.engine.state !== "player") return; afterBjAction(App.engine.stand()); }
+  function bjDouble() {
+    const h = App.engine.hands[App.engine.activeHand];
+    if (!h || !App.engine.canDouble() || App.bj.bankroll < h.bet) { UI.toast("No puedes doblar.", "error"); return; }
+    App.bj.bankroll -= h.bet;
+    if (AK.Sound) AK.Sound.play("chip");
+    afterBjAction(App.engine.double());
   }
+  function bjSplit() {
+    const h = App.engine.hands[App.engine.activeHand];
+    if (!h || !App.engine.canSplit() || App.bj.bankroll < h.bet) { UI.toast("No puedes dividir.", "error"); return; }
+    App.bj.bankroll -= h.bet;
+    if (AK.Sound) AK.Sound.play("chip");
+    afterBjAction(App.engine.split());
+  }
+  function bjSurrender() { if (!App.engine.canSurrender()) return; afterBjAction(App.engine.surrender()); }
+  function bjInsurance() {
+    const amt = App.engine.takeInsurance();
+    App.bj.bankroll -= amt; App.bj.insuranceBet = amt;
+    setStack(0, App.bj.bankroll);
+    if (AK.Sound) AK.Sound.play("chip");
+    renderBjPlay();
+  }
+  function bjNoInsurance() { App.engine.declineInsurance(); renderBjPlay(); }
 
   function revealDealer() {
     UI.revealAll(App.seats[1].cardsEl);
     App.bj.dealerRevealed = true;
     C.react(App.seats[1].charEl, "think", 800);
     paintBjValues();
-  }
-
-  function resolveBj(res) {
-    UI.clear($("controls"));
-    revealDealer();
-    UI.sleep(900).then(function () { settleBj(res); });
   }
 
   function settleBj(res) {
@@ -960,25 +1251,32 @@
     setStack(0, App.bj.bankroll);
     $("pot-label").textContent = "Banca " + UI.formatGold(App.bj.bankroll);
 
-    const msgs = {
-      blackjack: "¡BLACKJACK! Pagan 3:2 · +" + UI.formatGold(res.payout),
-      win: "¡Ganas la mano! +" + UI.formatGold(res.payout),
-      push: "Empate. Recuperas tu apuesta.",
-      lose: "Pierdes la mano."
-    };
-    const type = res.outcome === "lose" ? "lose" : (res.outcome === "push" ? "info" : "win");
-    UI.toast(msgs[res.outcome], type, 2600);
+    const outcomes = (res.results || []).map(function (r) { return r.outcome; });
+    const anyWin = outcomes.indexOf("win") >= 0;
+    const anyBJ = outcomes.indexOf("blackjack") >= 0;
+    const anyPush = outcomes.indexOf("push") >= 0;
+    const anySur = outcomes.indexOf("surrender") >= 0;
+    const allLose = outcomes.length > 0 && outcomes.every(function (o) { return o === "lose" || o === "surrender"; });
+
+    let type = "info", msg;
+    if (anyBJ) { type = "win"; msg = "¡BLACKJACK! 3:2 · +" + UI.formatGold(res.payout); }
+    else if (anyWin) { type = "win"; msg = "¡Ganas la mano! +" + UI.formatGold(res.payout); }
+    else if (allLose) { type = "lose"; msg = anySur ? "Te rindes; recuperas la mitad." : "Pierdes la mano."; }
+    else { msg = anyPush ? "Empate. Recuperas tu apuesta." : "Mano terminada."; }
+    if (res.insuranceWon) msg += " · Seguro pagado \u2714";
+
+    UI.toast(msg, type, 2600);
     if (AK.Sound) {
-      if (res.outcome === "blackjack") AK.Sound.play("bigwin");
-      else if (res.outcome === "win") AK.Sound.play("win");
-      else if (res.outcome === "lose") AK.Sound.play("lose");
+      if (anyBJ) AK.Sound.play("bigwin");
+      else if (anyWin) AK.Sound.play("win");
+      else if (allLose) AK.Sound.play("lose");
       else AK.Sound.play("check");
     }
-    if (res.outcome === "win" || res.outcome === "blackjack") {
+    if (anyWin || anyBJ) {
       UI.burstFromEl(App.seats[0].el, 26);
       C.react(App.seats[0].charEl, "win", 1400);
       C.react(App.seats[1].charEl, "lose", 1200);
-    } else if (res.outcome === "lose") {
+    } else if (allLose) {
       C.react(App.seats[0].charEl, "lose", 1200);
       C.react(App.seats[1].charEl, "win", 1200);
     }
@@ -989,7 +1287,7 @@
       showAction(0, ""); showAction(1, "");
       App.bj.bet = Math.min(App.bj.maxBet, Math.min(App.bj.bankroll, App.bj.minBet * 2));
       renderBjBet();
-    }, 1500);
+    }, 1600);
   }
 
   function cashOutBlackjack() {
@@ -1028,6 +1326,535 @@
         { label: "Ir al mapa", type: "primary", onClick: function () { renderCityMap(); showScreen("screen-city"); } }
       ]
     });
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  MINIJUEGOS (ruleta, tragaperras, baccarat, dados)                 *
+   * ------------------------------------------------------------------ */
+  function miniState() { return App.roulette || App.slots || App.baccarat || App.dice; }
+
+  function updateMiniGold() {
+    const m = miniState();
+    const el = $("mini-gold");
+    if (el) el.textContent = UI.formatGold(m ? m.bankroll : App.state.gold);
+  }
+
+  function wireMini() {
+    const back = $("btn-mini-back");
+    if (back) back.addEventListener("click", cashOutMini);
+    const guide = $("btn-mini-guide");
+    if (guide) guide.addEventListener("click", showMiniGuide);
+  }
+
+  function startMini(t) {
+    App.tableDef = t;
+    App.mode = t.game; App.leaving = false;
+    $("mini-title").textContent = t.name + " · " + App.city.name;
+    const base = { bankroll: t.buyIn, buyIn: t.buyIn, minBet: t.minBet, maxBet: t.maxBet, busy: false };
+    if (t.game === "roulette") App.roulette = Object.assign({}, base, { bets: [], wheel: new AK.RouletteWheel(), history: [], angle: 0, spinning: false });
+    else if (t.game === "slots") App.slots = Object.assign({}, base, { bet: Math.min(t.minBet * 5, t.buyIn), machine: new AK.SlotMachine(), spinning: false });
+    else if (t.game === "baccarat") App.baccarat = Object.assign({}, base, { bet: Math.min(t.minBet * 2, t.buyIn), pick: "player", table: new AK.BaccaratTable({ numDecks: 6 }), busy: false });
+    else if (t.game === "dice") App.dice = Object.assign({}, base, { bets: [], history: [], rolling: false });
+    showScreen("screen-mini");
+    updateMiniGold();
+    if (t.game === "roulette") { renderRoulette(); }
+    else if (t.game === "slots") { renderSlots(); }
+    else if (t.game === "baccarat") { renderBaccarat(); }
+    else if (t.game === "dice") { renderDice(); }
+    UI.toast(t.name + " · Banca de " + UI.formatGold(t.buyIn), "info", 2800);
+  }
+
+  function cashOutMini() {
+    if (!App.city || !App.tableDef) { backToCasino(); return; }
+    const m = miniState();
+    if (!m) { backToCasino(); return; }
+    if (m.spinning || m.rolling || m.busy) { UI.toast("Espera a que termine la ronda.", "warn"); return; }
+    const t = App.tableDef;
+    const bankroll = m.bankroll;
+    App.state.gold += bankroll;
+    const profit = bankroll - t.buyIn;
+    let bonus = 0;
+    if (profit > 0) { App.state.tablesWon++; bonus = Math.round(profit * 0.2); App.state.gold += bonus; }
+    AK.saveGame(App.state);
+    App.mode = null;
+    App.roulette = App.slots = App.baccarat = App.dice = null;
+    if (profit > 0) UI.burstFromCenter(34);
+    UI.modal({
+      title: profit > 0 ? "\uD83C\uDFC6 Buen beneficio en " + t.name : "Cobras y te retiras",
+      html:
+        '<div class="level-stakes">' +
+          "<span>Banca final: <b>" + UI.formatGold(bankroll) + " \uD83E\uDE99</b></span>" +
+          "<span>Entrada: <b>" + UI.formatGold(t.buyIn) + " \uD83E\uDE99</b></span>" +
+          "<span>Balance: <b style='color:" + (profit >= 0 ? "#4ade80" : "#f87171") + "'>" + (profit >= 0 ? "+" : "") + UI.formatGold(profit) + " \uD83E\uDE99</b></span>" +
+          (bonus ? "<span>Prima: <b>+" + UI.formatGold(bonus) + " \uD83E\uDE99</b></span>" : "") +
+        "</div>" +
+        '<p class="piggy">Oro total: <b>' + UI.formatGold(App.state.gold) + " \uD83E\uDE99</b></p>",
+      actions: [
+        { label: "Otra mesa", type: "gold", onClick: backToCasino },
+        { label: "Ir al mapa", type: "primary", onClick: function () { renderCityMap(); showScreen("screen-city"); } }
+      ]
+    });
+  }
+
+  function showMiniGuide() {
+    const RULES = {
+      roulette: "<h3>Ruleta europea</h3><p>37 números (un solo cero). Haz una o varias apuestas y gira.</p><ul><li>Pleno (número exacto): 35:1</li><li>Rojo/Negro, Par/Impar, 1-18/19-36: 1:1</li><li>Docena o Columna: 2:1</li></ul><p>El cero (0) gana solo en la apuesta de pleno.</p>",
+      slots: "<h3>Tragaperras</h3><p>Alinea tres símbolos iguales en el centro. Cuanto más raro el símbolo, más paga.</p><ul><li>🍒 Cereza x4 · 🍋 Limón x6 · 🍉 Sandía x10</li><li>🔔 Campana x20 · ⭐ Estrella x40</li><li>💎 Diamante x80 · 7️⃣ Siete x200</li></ul><p>Dos cerezas devuelven la apuesta.</p>",
+      baccarat: "<h3>Baccarat (Punto y Banca)</h3><p>Se reparten dos cartas a Punto y a Banca. Gana quien más se acerque a 9 (sin pasarse). Los dieces y figuras valen 0; el As vale 1.</p><ul><li>Apuesta a Punto: 1:1</li><li>Apuesta a Banca: 0.95:1</li><li>Empate: 8:1 (y devuelve Punto/Banca)</li></ul>",
+      dice: "<h3>Dados (Sic Bo)</h3><p>Se lanzan 3 dados. Apuesta a múltiples resultados.</p><ul><li>Pequeño (4-10) / Grande (11-17): 1:1</li><li>Par/Impar: 1:1 (el triple no cuenta)</li><li>Triple exacto: 30:1</li><li>Total exacto: hasta 60:1</li><li>Número suelto: paga según cuántas veces salga</li></ul>"
+    };
+    UI.modal({ title: "Reglas", html: '<div class="guide">' + (RULES[App.mode] || "") + "</div>", actions: [{ label: "Entendido", type: "primary" }] });
+  }
+
+  /* ------------------------------- RULETA ------------------------------- */
+  function rouletteWheelSVG() {
+    const order = AK.roulette.WHEEL;
+    const step = 360 / order.length, cx = 150, cy = 150, R = 150;
+    let paths = "";
+    order.forEach(function (n, i) {
+      const a0 = (i * step - 90) * Math.PI / 180, a1 = ((i + 1) * step - 90) * Math.PI / 180;
+      const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
+      const x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+      const col = n === 0 ? "#0a7a3d" : (AK.roulette.isRed(n) ? "#c62828" : "#141414");
+      paths += '<path d="M' + cx + ',' + cy + ' L' + x0.toFixed(1) + ',' + y0.toFixed(1) + ' A' + R + ',' + R + ' 0 0 1 ' + x1.toFixed(1) + ',' + y1.toFixed(1) + ' Z" fill="' + col + '" stroke="rgba(0,0,0,.4)"/>';
+      const am = ((i + 0.5) * step - 90) * Math.PI / 180;
+      const tx = cx + (R - 17) * Math.cos(am), ty = cy + (R - 17) * Math.sin(am);
+      paths += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" fill="#fff" font-size="10" font-weight="700" font-family="Arial" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + ((i + 0.5) * step).toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ')">' + n + '</text>';
+    });
+    return '<svg viewBox="0 0 300 300" class="rl-wheel" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="rl-rotor">' + paths + '</g>' +
+      '<circle cx="150" cy="150" r="150" fill="none" stroke="#c9a227" stroke-width="9"/>' +
+      '<circle cx="150" cy="150" r="118" fill="none" stroke="rgba(255,255,255,.14)"/>' +
+      '<polygon points="150,2 141,30 159,30" fill="#f5c542" stroke="#7a5a00"/>' +
+      '<circle cx="150" cy="150" r="28" fill="#141414" stroke="#c9a227" stroke-width="3"/>' +
+      '<text x="150" y="155" fill="#f5c542" font-size="16" font-weight="800" text-anchor="middle" font-family="Arial">AK</text>' +
+      '</svg>';
+  }
+
+  function renderRoulette() {
+    const m = App.roulette;
+    $("mini-body").innerHTML =
+      '<div class="mini-stage rl-stage">' +
+        '<div class="rl-side left">' +
+          '<div class="mini-panel-title">Historial</div>' +
+          '<div id="rl-hist" class="rl-hist"></div>' +
+        '</div>' +
+        '<div class="rl-wrap"><div class="rl-rotor-wrap">' + rouletteWheelSVG() + '</div>' +
+          '<div class="rl-result" id="rl-result">—</div>' +
+          '<div class="rl-result-sub" id="rl-result-sub"></div>' +
+        '</div>' +
+        '<div class="rl-side right">' +
+          '<div class="mini-panel-title">Apuestas</div>' +
+          '<div id="rl-bets" class="mini-betlist"></div>' +
+        '</div>' +
+      '</div>';
+    if (m.angle) { const r = $("mini-body").querySelector(".rl-rotor"); if (r) { r.style.transition = "none"; r.style.transform = "rotate(" + m.angle + "deg)"; } }
+    renderRouletteBets();
+    renderRouletteHist();
+    renderRouletteControls();
+    const res = $("rl-result"); if (m.wheel.last != null) { res.textContent = m.wheel.last; res.className = "rl-result " + colorClass(m.wheel.last); }
+  }
+
+  function colorClass(n) { return n === 0 ? "green" : (AK.roulette.isRed(n) ? "red" : "black"); }
+
+  function renderRouletteBets() {
+    const m = App.roulette;
+    const box = $("rl-bets"); if (!box) return;
+    UI.clear(box);
+    if (!m.bets.length) { box.innerHTML = '<div class="mini-empty">Sin apuestas todavía</div>'; return; }
+    m.bets.forEach(function (b, i) {
+      const row = document.createElement("div");
+      row.className = "mini-bet";
+      row.innerHTML = '<span>' + AK.roulette.label(b) + '</span><b>' + UI.formatGold(b.amount) + ' 🪙</b>';
+      const x = makeBtn("✕", "ghost small", function () { m.bets.splice(i, 1); renderRouletteBets(); });
+      row.appendChild(x);
+      box.appendChild(row);
+    });
+    const tot = m.bets.reduce(function (s, b) { return s + b.amount; }, 0);
+    const t = document.createElement("div"); t.className = "mini-bet-total";
+    t.innerHTML = "Total apostado: <b>" + UI.formatGold(tot) + " 🪙</b>";
+    box.appendChild(t);
+  }
+
+  function renderRouletteHist() {
+    const box = $("rl-hist"); if (!box) return;
+    UI.clear(box);
+    if (!App.roulette.history.length) { box.innerHTML = '<div class="mini-empty">—</div>'; return; }
+    App.roulette.history.forEach(function (n) {
+      const c = document.createElement("span");
+      c.className = "rl-hist-chip " + colorClass(n);
+      c.textContent = n;
+      box.appendChild(c);
+    });
+  }
+
+  function renderRouletteControls() {
+    const m = App.roulette;
+    const box = $("mini-controls"); if (!box) return;
+    UI.clear(box); box.className = "mini-controls";
+    if (m.spinning) return;
+
+    const cfg = document.createElement("div"); cfg.className = "mini-cfg";
+    const typeSel = document.createElement("select"); typeSel.className = "mini-select";
+    [["straight", "Pleno (número)"], ["red", "Rojo"], ["black", "Negro"], ["even", "Par"], ["odd", "Impar"], ["low", "1-18"], ["high", "19-36"], ["dozen", "Docena"], ["column", "Columna"]]
+      .forEach(function (o) { const op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; typeSel.appendChild(op); });
+    const valIn = document.createElement("input"); valIn.type = "number"; valIn.className = "mini-num";
+    valIn.min = "0"; valIn.max = "36"; valIn.value = "0"; valIn.title = "Número (0-36) / docena (1-3) / columna (1-3)";
+    const amtIn = document.createElement("input"); amtIn.type = "number"; amtIn.className = "mini-num";
+    amtIn.min = String(m.minBet); amtIn.max = String(m.maxBet); amtIn.step = String(m.minBet); amtIn.value = String(m.minBet); amtIn.title = "Importe";
+    cfg.appendChild(labelWrap("Apuesta", typeSel));
+    cfg.appendChild(labelWrap("Valor", valIn));
+    cfg.appendChild(labelWrap("Importe", amtIn));
+    box.appendChild(cfg);
+
+    const maxIn = document.createElement("input"); maxIn.type = "range";
+    maxIn.className = "raise-range"; maxIn.min = String(m.minBet); maxIn.max = String(m.maxBet); maxIn.step = String(m.minBet); maxIn.value = String(m.minBet);
+    maxIn.addEventListener("input", function () { amtIn.value = maxIn.value; });
+    amtIn.addEventListener("input", function () { maxIn.value = amtIn.value; });
+    box.appendChild(maxIn);
+
+    const row = document.createElement("div"); row.className = "btn-row";
+    row.appendChild(makeBtn("+ Añadir apuesta", "gold", function () {
+      const type = typeSel.value;
+      let value = Number(valIn.value);
+      if ((type === "dozen" || type === "column") && (value < 1 || value > 3)) { UI.toast("Elige docena/columna 1, 2 o 3.", "error"); return; }
+      if (type === "straight" && (value < 0 || value > 36)) { UI.toast("El número debe ser 0-36.", "error"); return; }
+      const amount = Math.max(m.minBet, Math.min(m.maxBet, Math.floor(Number(amtIn.value) || m.minBet)));
+      const tot = m.bets.reduce(function (s, b) { return s + b.amount; }, 0) + amount;
+      if (tot > m.bankroll) { UI.toast("No te llega el oro.", "error"); return; }
+      m.bets.push({ type: type, value: (type === "straight" || type === "dozen" || type === "column") ? value : null, amount: amount });
+      if (AK.Sound) AK.Sound.play("chip");
+      renderRouletteBets();
+    }));
+    row.appendChild(makeBtn("🗑 Limpiar", "ghost", function () { m.bets = []; renderRouletteBets(); }));
+    row.appendChild(makeBtn("🎯 Girar", "primary", spinRoulette));
+    row.appendChild(makeBtn("💰 Cobrar y salir", "ghost", cashOutMini));
+    box.appendChild(row);
+  }
+
+  function labelWrap(text, el) {
+    const w = document.createElement("label"); w.className = "mini-field";
+    const s = document.createElement("span"); s.textContent = text;
+    w.appendChild(s); w.appendChild(el);
+    return w;
+  }
+
+  function spinRoulette() {
+    const m = App.roulette;
+    if (!m || m.spinning) return;
+    if (!m.bets.length) { UI.toast("Añade al menos una apuesta.", "warn"); return; }
+    const staked = m.bets.reduce(function (s, b) { return s + b.amount; }, 0);
+    if (staked > m.bankroll) { UI.toast("No te llega el oro.", "error"); return; }
+    m.bankroll -= staked; m.spinning = true;
+    const n = m.wheel.spin();
+    const idx = m.wheel.indexOf(n);
+    const step = 360 / m.wheel.order.length;
+    const desired = -(idx + 0.5) * step;
+    const cur = m.angle || 0;
+    const delta = ((desired - cur) % 360 + 360) % 360;
+    m.angle = cur + 360 * 6 + delta;
+    const rotor = $("mini-body").querySelector(".rl-rotor");
+    if (rotor) { rotor.style.transition = "transform 3.4s cubic-bezier(.16,.64,.24,1)"; rotor.style.transform = "rotate(" + m.angle + "deg)"; }
+    updateMiniGold();
+    renderRouletteControls();
+    if (AK.Sound) AK.Sound.play("chip");
+    UI.sleep(3500).then(function () { settleRoulette(n); });
+  }
+
+  function settleRoulette(n) {
+    const m = App.roulette;
+    const res = AK.roulette.resolveBets(m.bets, n);
+    m.bankroll += res.total; m.spinning = false;
+    m.history.unshift(n); if (m.history.length > 12) m.history.pop();
+    const el = $("rl-result"); if (el) { el.textContent = n; el.className = "rl-result " + colorClass(n); }
+    const sub = $("rl-result-sub");
+    if (sub) sub.textContent = n === 0 ? "CERO · verde" : (AK.roulette.isRed(n) ? "ROJO" : "NEGRO");
+    const net = res.total - res.staked;
+    UI.toast(net > 0 ? ("¡Ganas " + UI.formatGold(net) + "! Sale el " + n) : (net === 0 ? "Apuesta devuelta. Sale el " + n : "Sale el " + n + ". Pierdes " + UI.formatGold(res.staked) + "."),
+      net > 0 ? "win" : (net === 0 ? "info" : "lose"), 3000);
+    if (AK.Sound) AK.Sound.play(net > 0 ? "win" : (net < 0 ? "lose" : "check"));
+    if (net > 0) UI.burstFromCenter(24);
+    m.bets = [];
+    updateMiniGold(); renderRouletteBets(); renderRouletteHist();
+    if (m.bankroll < m.minBet) { UI.sleep(1400).then(cashOutMini); return; }
+    renderRouletteControls();
+  }
+
+  /* ---------------------------- TRAGAPERRAS ---------------------------- */
+  function renderSlots() {
+    $("mini-body").innerHTML =
+      '<div class="mini-stage sl-stage">' +
+        '<div class="sl-machine">' +
+          '<div class="sl-reels">' +
+            '<div class="sl-reel" id="sl-r0">🍒</div><div class="sl-reel" id="sl-r1">🍋</div><div class="sl-reel" id="sl-r2">⭐</div>' +
+          '</div>' +
+          '<div class="sl-msg" id="sl-msg">¡Tira de la palanca!</div>' +
+        '</div>' +
+        '<div class="sl-paytable"><div class="mini-panel-title">Premios (× apuesta)</div>' +
+          AK.SLOT_SYMBOLS.slice().reverse().map(function (s) { return '<div class="sl-pay"><span>' + s.glyph + ' ' + s.glyph + ' ' + s.glyph + '</span><b>×' + s.mult + '</b></div>'; }).join("") +
+          '<div class="sl-pay"><span>🍒 🍒 ·</span><b>×1</b></div>' +
+        '</div>' +
+      '</div>';
+    renderSlotsControls();
+  }
+
+  function renderSlotsControls() {
+    const m = App.slots;
+    const box = $("mini-controls"); if (!box) return;
+    UI.clear(box); box.className = "mini-controls";
+    if (m.spinning) return;
+
+    const chips = document.createElement("div"); chips.className = "chip-row";
+    [1, 2, 5, 10, 25].forEach(function (mult) {
+      const v = m.minBet * mult;
+      if (v > m.bankroll) return;
+      chips.appendChild(makeBtn(UI.formatGold(v), "chip", function () {
+        m.bet = Math.min(m.maxBet, Math.min(m.bankroll, v));
+        range.value = m.bet; label.textContent = UI.formatGold(m.bet);
+      }));
+    });
+    box.appendChild(chips);
+
+    const wrap = document.createElement("div"); wrap.className = "raise-control";
+    const range = document.createElement("input"); range.type = "range";
+    range.min = m.minBet; range.max = Math.max(m.minBet, Math.min(m.maxBet, m.bankroll)); range.step = m.minBet;
+    range.value = Math.min(m.bet, range.max);
+    const label = document.createElement("span"); label.className = "raise-value"; label.textContent = UI.formatGold(range.value);
+    m.bet = Number(range.value);
+    range.addEventListener("input", function () { m.bet = Number(range.value); label.textContent = UI.formatGold(range.value); });
+    wrap.appendChild(range); wrap.appendChild(label);
+    box.appendChild(wrap);
+
+    const row = document.createElement("div"); row.className = "btn-row";
+    row.appendChild(makeBtn("🎰 Tirar", "primary", spinSlots));
+    row.appendChild(makeBtn("💰 Cobrar y salir", "ghost", cashOutMini));
+    row.appendChild(makeBtn("❓ Reglas", "ghost", showMiniGuide));
+    box.appendChild(row);
+  }
+
+  function spinSlots() {
+    const m = App.slots;
+    if (!m || m.spinning) return;
+    if (m.bet < m.minBet || m.bet > m.bankroll) { UI.toast("Apuesta no válida.", "error"); return; }
+    m.bankroll -= m.bet; m.spinning = true;
+    updateMiniGold(); renderSlotsControls();
+    const res = m.machine.spin(m.bet);
+    const els = [$("sl-r0"), $("sl-r1"), $("sl-r2")];
+    const glyphs = AK.SLOT_SYMBOLS.map(function (s) { return s.glyph; });
+    if (AK.Sound) AK.Sound.play("chip");
+    const iv = window.setInterval(function () {
+      els.forEach(function (e, i) { e.classList.add("spin"); e.textContent = glyphs[Math.floor(Math.random() * glyphs.length)]; });
+    }, 70);
+    UI.sleep(1400).then(function () {
+      window.clearInterval(iv);
+      els.forEach(function (e, i) { e.classList.remove("spin"); e.textContent = res.reels[i].glyph; });
+      settleSlots(res);
+    });
+  }
+
+  function settleSlots(res) {
+    const m = App.slots;
+    m.spinning = false; m.bankroll += res.payout;
+    const net = res.payout - m.bet;
+    const msg = $("sl-msg");
+    if (res.multiplier > 1) { msg.textContent = "¡TRÍO! ×" + res.multiplier + " · +" + UI.formatGold(res.payout); msg.className = "sl-msg win"; }
+    else if (res.payout > 0) { msg.textContent = "Dos cerezas · recuperas " + UI.formatGold(res.payout); msg.className = "sl-msg"; }
+    else { msg.textContent = "Sin premio"; msg.className = "sl-msg lose"; }
+    UI.toast(net > 0 ? ("¡Ganas " + UI.formatGold(net) + "!") : (net === 0 ? "Recuperas la apuesta." : "Pierdes " + UI.formatGold(m.bet) + "."), net > 0 ? "win" : (net === 0 ? "info" : "lose"), 2400);
+    if (AK.Sound) AK.Sound.play(net > 0 ? "win" : (net < 0 ? "lose" : "check"));
+    if (net > 0) UI.burstFromCenter(20);
+    updateMiniGold(); renderSlotsControls();
+    if (m.bankroll < m.minBet) { UI.sleep(1400).then(cashOutMini); }
+  }
+
+  /* ------------------------------ BACCARAT ----------------------------- */
+  function renderBaccarat() {
+    const m = App.baccarat;
+    $("mini-body").innerHTML =
+      '<div class="mini-stage bac-stage">' +
+        '<div class="bac-table">' +
+          '<div class="bac-hand"><div class="mini-panel-title"><span class="bac-side player">PUNTO</span> <b id="bac-pt">0</b></div><div class="hand bac-cards" id="bac-pcards"></div></div>' +
+          '<div class="bac-hand"><div class="mini-panel-title"><span class="bac-side banker">BANCA</span> <b id="bac-bt">0</b></div><div class="hand bac-cards" id="bac-bcards"></div></div>' +
+        '</div>' +
+        '<div class="bac-msg" id="bac-msg">Elige Punto, Banca o Empate y reparte.</div>' +
+      '</div>';
+    renderBaccaratControls();
+  }
+
+  function renderBaccaratControls() {
+    const m = App.baccarat;
+    const box = $("mini-controls"); if (!box) return;
+    UI.clear(box); box.className = "mini-controls";
+    if (m.busy) return;
+
+    const picks = document.createElement("div"); picks.className = "btn-row";
+    [["player", "🟦 Punto"], ["banker", "🟥 Banca"], ["tie", "🟩 Empate"]].forEach(function (p) {
+      const b = makeBtn(p[1], m.pick === p[0] ? "gold" : "ghost", function () { m.pick = p[0]; renderBaccaratControls(); });
+      picks.appendChild(b);
+    });
+    box.appendChild(picks);
+
+    const wrap = document.createElement("div"); wrap.className = "raise-control";
+    const range = document.createElement("input"); range.type = "range";
+    range.min = m.minBet; range.max = Math.max(m.minBet, Math.min(m.maxBet, m.bankroll)); range.step = m.minBet;
+    range.value = Math.min(m.bet, range.max);
+    const label = document.createElement("span"); label.className = "raise-value"; label.textContent = UI.formatGold(range.value);
+    m.bet = Number(range.value);
+    range.addEventListener("input", function () { m.bet = Number(range.value); label.textContent = UI.formatGold(range.value); });
+    wrap.appendChild(range); wrap.appendChild(label);
+    box.appendChild(wrap);
+
+    const row = document.createElement("div"); row.className = "btn-row";
+    row.appendChild(makeBtn("🃏 Repartir", "primary", dealBaccarat));
+    row.appendChild(makeBtn("💰 Cobrar y salir", "ghost", cashOutMini));
+    row.appendChild(makeBtn("❓ Reglas", "ghost", showMiniGuide));
+    box.appendChild(row);
+  }
+
+  function dealBaccarat() {
+    const m = App.baccarat;
+    if (!m || m.busy) return;
+    if (m.bet < m.minBet || m.bet > m.bankroll) { UI.toast("Apuesta no válida.", "error"); return; }
+    m.bankroll -= m.bet; m.busy = true;
+    updateMiniGold(); renderBaccaratControls();
+    const h = m.table.deal();
+    const pc = $("bac-pcards"), bc = $("bac-bcards");
+    UI.clear(pc); UI.clear(bc);
+    const seq = [[pc, h.player[0]], [bc, h.banker[0]], [pc, h.player[1]], [bc, h.banker[1]]];
+    if (h.player[2]) seq.push([pc, h.player[2]]);
+    if (h.banker[2]) seq.push([bc, h.banker[2]]);
+    seq.forEach(function (s, i) {
+      UI.sleep(250 * (i + 1)).then(function () { UI.dealCard(s[0], s[1], { down: false }); if (AK.Sound) AK.Sound.play("deal"); });
+    });
+    UI.sleep(250 * (seq.length + 1)).then(function () { settleBaccarat(h); });
+  }
+
+  function settleBaccarat(h) {
+    const m = App.baccarat;
+    $("bac-pt").textContent = h.playerTotal;
+    $("bac-bt").textContent = h.bankerTotal;
+    const payout = m.table.payout(m.pick, m.bet, h.winner);
+    m.bankroll += payout; m.busy = false;
+    const net = payout - m.bet;
+    const wname = h.winner === "player" ? "Punto" : (h.winner === "banker" ? "Banca" : "Empate");
+    let txt = "Gana " + wname + " — Punto " + h.playerTotal + " · Banca " + h.bankerTotal + ".";
+    const msg = $("bac-msg");
+    if (h.winner === "tie") { msg.textContent = txt + (m.pick === "tie" ? " ¡Pagado 8:1!" : " Apuesta devuelta."); msg.className = "bac-msg win"; }
+    else if (m.pick === h.winner) { msg.textContent = txt + " ¡Acertaste!"; msg.className = "bac-msg win"; }
+    else { msg.textContent = txt + " No acertaste."; msg.className = "bac-msg lose"; }
+    UI.toast(net > 0 ? ("¡Ganas " + UI.formatGold(net) + "!") : (net === 0 ? "Recuperas la apuesta." : "Pierdes " + UI.formatGold(m.bet) + "."), net > 0 ? "win" : (net === 0 ? "info" : "lose"), 2600);
+    if (AK.Sound) AK.Sound.play(net > 0 ? "win" : (net < 0 ? "lose" : "check"));
+    if (net > 0) UI.burstFromCenter(22);
+    updateMiniGold(); renderBaccaratControls();
+    if (m.bankroll < m.minBet) { UI.sleep(1400).then(cashOutMini); }
+  }
+
+  /* -------------------------------- DADOS ------------------------------ */
+  function renderDice() {
+    $("mini-body").innerHTML =
+      '<div class="mini-stage dice-stage">' +
+        '<div class="dice-arena">' +
+          '<div class="dice-row"><div class="die" id="die0">🎲</div><div class="die" id="die1">🎲</div><div class="die" id="die2">🎲</div></div>' +
+          '<div class="dice-msg" id="dice-msg">Apuesta y lanza los dados.</div>' +
+        '</div>' +
+        '<div class="dice-side rl-side right"><div class="mini-panel-title">Apuestas</div><div id="dice-bets" class="mini-betlist"></div></div>' +
+      '</div>';
+    renderDiceBets();
+    renderDiceControls();
+  }
+
+  function renderDiceBets() {
+    const m = App.dice;
+    const box = $("dice-bets"); if (!box) return;
+    UI.clear(box);
+    if (!m.bets.length) { box.innerHTML = '<div class="mini-empty">Sin apuestas todavía</div>'; return; }
+    m.bets.forEach(function (b, i) {
+      const row = document.createElement("div"); row.className = "mini-bet";
+      row.innerHTML = '<span>' + AK.dice.label(b) + '</span><b>' + UI.formatGold(b.amount) + ' 🪙</b>';
+      row.appendChild(makeBtn("✕", "ghost small", function () { m.bets.splice(i, 1); renderDiceBets(); }));
+      box.appendChild(row);
+    });
+    const tot = m.bets.reduce(function (s, b) { return s + b.amount; }, 0);
+    const t = document.createElement("div"); t.className = "mini-bet-total";
+    t.innerHTML = "Total apostado: <b>" + UI.formatGold(tot) + " 🪙</b>";
+    box.appendChild(t);
+  }
+
+  function renderDiceControls() {
+    const m = App.dice;
+    const box = $("mini-controls"); if (!box) return;
+    UI.clear(box); box.className = "mini-controls";
+    if (m.rolling) return;
+
+    const cfg = document.createElement("div"); cfg.className = "mini-cfg";
+    const typeSel = document.createElement("select"); typeSel.className = "mini-select";
+    [["small", "Pequeño (4-10)"], ["big", "Grande (11-17)"], ["odd", "Impar"], ["even", "Par"], ["triple", "Triple"], ["total", "Total exacto"], ["single", "Número suelto"]]
+      .forEach(function (o) { const op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; typeSel.appendChild(op); });
+    const valIn = document.createElement("input"); valIn.type = "number"; valIn.className = "mini-num"; valIn.min = "1"; valIn.max = "18"; valIn.value = "1"; valIn.title = "Total (4-17) o número (1-6)";
+    const amtIn = document.createElement("input"); amtIn.type = "number"; amtIn.className = "mini-num"; amtIn.min = String(m.minBet); amtIn.max = String(m.maxBet); amtIn.step = String(m.minBet); amtIn.value = String(m.minBet);
+    cfg.appendChild(labelWrap("Apuesta", typeSel));
+    cfg.appendChild(labelWrap("Valor", valIn));
+    cfg.appendChild(labelWrap("Importe", amtIn));
+    box.appendChild(cfg);
+
+    const row = document.createElement("div"); row.className = "btn-row";
+    row.appendChild(makeBtn("+ Añadir apuesta", "gold", function () {
+      const type = typeSel.value;
+      const value = Number(valIn.value);
+      if (type === "total" && (value < 4 || value > 17)) { UI.toast("El total debe ser 4-17.", "error"); return; }
+      if (type === "single" && (value < 1 || value > 6)) { UI.toast("El número debe ser 1-6.", "error"); return; }
+      const amount = Math.max(m.minBet, Math.min(m.maxBet, Math.floor(Number(amtIn.value) || m.minBet)));
+      const tot = m.bets.reduce(function (s, b) { return s + b.amount; }, 0) + amount;
+      if (tot > m.bankroll) { UI.toast("No te llega el oro.", "error"); return; }
+      m.bets.push({ type: type, value: (type === "total" || type === "single") ? value : null, amount: amount });
+      if (AK.Sound) AK.Sound.play("chip");
+      renderDiceBets();
+    }));
+    row.appendChild(makeBtn("🗑 Limpiar", "ghost", function () { m.bets = []; renderDiceBets(); }));
+    row.appendChild(makeBtn("🎲 Tirar", "primary", rollDice));
+    row.appendChild(makeBtn("💰 Cobrar y salir", "ghost", cashOutMini));
+    box.appendChild(row);
+  }
+
+  function rollDice() {
+    const m = App.dice;
+    if (!m || m.rolling) return;
+    if (!m.bets.length) { UI.toast("Añade al menos una apuesta.", "warn"); return; }
+    const staked = m.bets.reduce(function (s, b) { return s + b.amount; }, 0);
+    if (staked > m.bankroll) { UI.toast("No te llega el oro.", "error"); return; }
+    m.bankroll -= staked; m.rolling = true;
+    updateMiniGold(); renderDiceControls();
+    const faces = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+    const els = [$("die0"), $("die1"), $("die2")];
+    els.forEach(function (e) { e.classList.add("rolling"); });
+    if (AK.Sound) AK.Sound.play("chip");
+    const iv = window.setInterval(function () {
+      els.forEach(function (e) { e.textContent = faces[Math.floor(Math.random() * 6)]; });
+    }, 80);
+    UI.sleep(1200).then(function () {
+      window.clearInterval(iv);
+      const d = AK.dice.roll();
+      els.forEach(function (e, i) { e.classList.remove("rolling"); e.textContent = faces[d[i] - 1]; });
+      settleDice(d, staked);
+    });
+  }
+
+  function settleDice(d, staked) {
+    const m = App.dice;
+    const res = AK.dice.resolveBets(m.bets, d);
+    m.bankroll += res.total; m.rolling = false;
+    const total = d[0] + d[1] + d[2];
+    const net = res.total - staked;
+    const msg = $("dice-msg");
+    msg.textContent = "Dados " + d.join(" + ") + " = " + total + (AK.dice.isTriple(d) ? " (¡TRIPLE!)" : "");
+    msg.className = "dice-msg " + (net > 0 ? "win" : (net < 0 ? "lose" : ""));
+    UI.toast(net > 0 ? ("¡Ganas " + UI.formatGold(net) + "!") : (net === 0 ? "Recuperas la apuesta." : "Pierdes " + UI.formatGold(staked) + "."), net > 0 ? "win" : (net === 0 ? "info" : "lose"), 2600);
+    if (AK.Sound) AK.Sound.play(net > 0 ? "win" : (net < 0 ? "lose" : "check"));
+    if (net > 0) UI.burstFromCenter(22);
+    m.bets = [];
+    updateMiniGold(); renderDiceBets();
+    if (m.bankroll < m.minBet) { UI.sleep(1400).then(cashOutMini); return; }
+    renderDiceControls();
   }
 
   /* ------------------------------------------------------------------ *

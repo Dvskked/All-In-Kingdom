@@ -77,6 +77,7 @@
         </div>
       </div>
       <div class="hud-right">
+        <button id="btn-invest" class="btn ghost small" title="Negocios e inversiones">💼 Negocios</button>
         <button id="btn-city-guide" class="btn ghost small" title="Guía de manos">📖 Guía</button>
         <div class="hud-gold-pill">🪙 <b id="hud-gold">0</b></div>
         <button id="btn-reset" class="btn ghost small" title="Reiniciar aventura">↺</button>
@@ -135,8 +136,40 @@
     </div>
   </section>
 
+  <!-- ========================= MINIJUEGOS ============================ -->
+  <section id="screen-mini" class="screen">
+    <header class="table-hud mini-hud">
+      <button id="btn-mini-back" class="btn ghost small">← Salir</button>
+      <div id="mini-title" class="table-level">Minijuego</div>
+      <div class="hud-right">
+        <button id="btn-mini-guide" class="btn ghost small">❓ Reglas</button>
+        <div class="hud-gold-pill">🪙 <b id="mini-gold">0</b></div>
+      </div>
+    </header>
+    <div id="mini-body" class="mini-body"></div>
+    <div id="mini-controls" class="mini-controls"></div>
+  </section>
+
+  <!-- ====================== NEGOCIOS / INVERSIONES ================== -->
+  <section id="screen-invest" class="screen">
+    <header class="table-hud">
+      <button id="btn-invest-back" class="btn ghost small">← Mapa</button>
+      <div class="table-level">💼 Negocios e inversiones</div>
+      <div class="hud-right">
+        <div class="hud-gold-pill">🪙 <b id="invest-gold">0</b></div>
+      </div>
+    </header>
+    <div class="map-body">
+      <h2 class="map-title">Ingresos pasivos</h2>
+      <p class="map-sub">Compra negocios en cada ciudad y recibe oro automáticamente cada minuto, incluso cuando no estás jugando.</p>
+      <div id="invest-list" class="invest-list"></div>
+      <div id="invest-help" class="invest-help"></div>
+    </div>
+  </section>
+
   <!-- ============================ OVERLAYS ============================ -->
-  <button id="sound-toggle" class="sound-toggle" title="Sonido on/off">🔊</button>
+  <button id="sound-toggle" class="sound-toggle" title="Efectos on/off">🔊</button>
+  <button id="music-toggle" class="sound-toggle music-toggle" title="Música on/off">🎵</button>
 
   <div id="modal-overlay" class="modal-overlay">
     <div id="modal-box" class="modal-box"></div>
@@ -150,9 +183,14 @@
   <script src="js/poker.js"></script>
   <script src="js/blackjack.js"></script>
   <script src="js/horses.js"></script>
+  <script src="js/roulette.js"></script>
+  <script src="js/slots.js"></script>
+  <script src="js/baccarat.js"></script>
+  <script src="js/dice.js"></script>
   <script src="js/sound.js"></script>
   <script src="js/ai.js"></script>
   <script src="js/progression.js"></script>
+  <script src="js/cityart.js"></script>
   <script src="js/characters.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/game.js"></script>

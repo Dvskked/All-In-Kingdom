@@ -4,7 +4,7 @@ global.window.addEventListener = function () {};
 
 const path = require("path");
 const base = "F:/All-In Kingdom/js/";
-["guard.js", "deck.js", "poker.js", "blackjack.js", "horses.js", "sound.js", "ai.js", "progression.js", "characters.js", "ui.js"].forEach(function (f) {
+["guard.js", "deck.js", "poker.js", "blackjack.js", "horses.js", "roulette.js", "slots.js", "baccarat.js", "dice.js", "sound.js", "ai.js", "progression.js", "cityart.js", "characters.js", "ui.js"].forEach(function (f) {
   require(path.join(base, f));
 });
 
@@ -153,6 +153,37 @@ for (let i = 0; i < 200; i++) {
 assert(bjErrs === 0, "200 rondas de blackjack sin estados invalidos (errores=" + bjErrs + ")");
 console.log("   blackjack -> victorias " + wins + " | derrotas " + losses + " | empates " + pushes);
 
+/* ---- 4b. Blackjack: dividir, seguro y rendirse ---- */
+const bjSplit = new AK.BlackjackTable({ numDecks: 1 });
+bjSplit.newRound(10);
+bjSplit.hands[0].cards = [C("8", "hearts"), C("8", "spades")];
+bjSplit.dealerHand = [C("6", "clubs"), C("10", "diamonds")];
+bjSplit.insuranceOffered = false; bjSplit.state = "player"; bjSplit.activeHand = 0;
+assert(bjSplit.canSplit(), "se puede dividir con dos ochos");
+bjSplit.split();
+assert(bjSplit.hands.length === 2, "split crea una segunda mano -> " + bjSplit.hands.length);
+assert(bjSplit.hands.every(function (h) { return h.cards.length >= 2; }), "cada mano dividida recibe carta");
+
+const bjIns = new AK.BlackjackTable({ numDecks: 1 });
+bjIns.newRound(10);
+bjIns.hands[0].cards = [C("10", "hearts"), C("9", "spades")];
+bjIns.dealerHand = [C("A", "clubs"), C("10", "diamonds")];
+bjIns.dealerHasNatural = true; bjIns.insuranceOffered = true; bjIns.state = "player";
+const insAmt = bjIns.takeInsurance();
+assert(insAmt === 5, "el seguro cuesta la mitad de la apuesta -> " + insAmt);
+bjIns.stand();
+assert(bjIns.result.insuranceWon === true, "el seguro paga cuando el croupier liga blackjack");
+
+const bjSur = new AK.BlackjackTable({ numDecks: 1 });
+bjSur.newRound(10);
+bjSur.hands[0].cards = [C("10", "hearts"), C("6", "spades")];
+bjSur.dealerHand = [C("A", "clubs"), C("9", "diamonds")];
+bjSur.insuranceOffered = false; bjSur.state = "player";
+assert(bjSur.canSurrender(), "se puede rendir al inicio de la mano");
+const surRes = bjSur.surrender();
+assert(surRes.results[0].outcome === "surrender", "rendirse marca la mano como rendida");
+assert(surRes.payout === 5, "rendirse devuelve la mitad de la apuesta -> " + surRes.payout);
+
 /* ---- 5. Progresion (ciudades, bots, guardado) ---- */
 assert(AK.CITIES.length === 12, "doce ciudades en la ruta -> " + AK.CITIES.length);
 assert(AK.CITIES[0].unlockGold === 0, "Villa Fichas empieza desbloqueada");
@@ -205,6 +236,59 @@ const loseHorse = race2.order[race2.order.length - 1];
 assert(AK.HorseRace.payout(100, winHorse, "win") > 100, "ganador paga la cuota (win) -> " + AK.HorseRace.payout(100, winHorse, "win"));
 assert(AK.HorseRace.payout(100, loseHorse, "win") === 0, "perdedor no paga (win)");
 assert(AK.HorseRace.payout(100, winHorse, "place") >= 100, "colocado (top 3) paga reducido -> " + AK.HorseRace.payout(100, winHorse, "place"));
+
+/* ---- 7b. Ruleta / tragaperras / baccarat / dados (nuevos motores) ---- */
+const rw = new AK.RouletteWheel();
+assert(rw.order.length === 37 && rw.order[0] === 0, "ruleta europea de 37 numeros");
+let rouErr = 0;
+for (let i = 0; i < 100; i++) { const n = rw.spin(); if (n < 0 || n > 36) rouErr++; }
+assert(rouErr === 0, "100 giros de ruleta dentro de 0..36");
+assert(AK.roulette.resolveBets([{ type: "red", amount: 10 }], 3).total === 20, "rojo paga 1:1 (10 -> 20)");
+assert(AK.roulette.resolveBets([{ type: "red", amount: 10 }], 4).total === 0, "negro no paga");
+assert(AK.roulette.resolveBets([{ type: "straight", value: 7, amount: 1 }], 7).total === 36, "pleno paga 35:1 (x36)");
+assert(AK.roulette.resolveBets([{ type: "dozen", value: 2, amount: 10 }], 15).total === 30, "docena 2 paga 2:1");
+assert(AK.roulette.betWins({ type: "column", value: 3 }, 3) === true, "columna 3 acierta con el 3");
+
+const sm = new AK.SlotMachine();
+let slotErr = 0;
+for (let i = 0; i < 200; i++) {
+  const r = sm.spin(10);
+  if (r.reels.length !== 3) slotErr++;
+  if (r.multiplier > 0 && r.payout <= 0) slotErr++;
+  if (r.multiplier === 0 && r.payout !== 0) slotErr++;
+}
+assert(slotErr === 0, "200 tiradas de tragaperras coherentes");
+assert(sm.symbols.some(function (s) { return s.key === "seven" && s.mult === 200; }), "el siete paga x200");
+
+const bt = new AK.BaccaratTable({ numDecks: 6 });
+let bacErr = 0, bacTies = 0;
+for (let i = 0; i < 200; i++) {
+  const h = bt.deal();
+  if (h.player.length < 2 || h.banker.length < 2) bacErr++;
+  if (h.player.length > 3 || h.banker.length > 3) bacErr++;
+  if (["player", "banker", "tie"].indexOf(h.winner) < 0) bacErr++;
+  if (h.winner === "tie") bacTies++;
+}
+assert(bacErr === 0, "200 manos de baccarat validas (empates=" + bacTies + ")");
+assert(bt.payout("banker", 100, "banker") === 195, "banca paga 0.95:1");
+assert(bt.payout("tie", 10, "tie") === 90, "empate paga 8:1");
+assert(bt.payout("player", 10, "tie") === 10, "empate devuelve la apuesta de punto");
+
+let diceErr = 0;
+for (let i = 0; i < 300; i++) {
+  const d3 = AK.dice.roll();
+  if (d3.length !== 3 || d3.some(function (x) { return x < 1 || x > 6; })) diceErr++;
+}
+assert(diceErr === 0, "300 tiradas de 3 dados dentro de 1..6");
+assert(AK.dice.resolveBets([{ type: "big", amount: 10 }], [4, 5, 6]).total === 20, "grande (15) paga 1:1");
+assert(AK.dice.betWins({ type: "triple" }, [2, 2, 2]) === true, "triple detectado");
+assert(AK.dice.resolveBets([{ type: "single", value: 2, amount: 10 }], [2, 2, 5]).total === 30, "dos aciertos de un numero pagan 2:1");
+
+/* ---- 7c. Ilustraciones de ciudad (SVG local) ---- */
+assert(typeof AK.CityArt.uri === "function", "CityArt exportado");
+assert(AK.CityArt.svg("vegas").indexOf("<svg") === 0, "CityArt genera un SVG para Las Vegas");
+assert(AK.CityArt.uri("madrid").indexOf("data:image/svg+xml") === 0, "CityArt genera data URI para Madrid");
+assert(AK.CityArt.svg("inexistente").indexOf("<svg") === 0, "CityArt tolera una ciudad desconocida (usa la primera)");
 
 /* ---- 8. Temas de mesa por ciudad + hipodromos ---- */
 assert(AK.CITIES.every(function (c) { return c.theme && c.theme.felt && c.theme.felt2 && c.theme.edge; }), "cada ciudad tiene su tema de mesa");
