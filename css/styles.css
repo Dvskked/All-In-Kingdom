@@ -1547,3 +1547,146 @@ input[type="text"]:focus, input[type="number"]:focus { border-color: var(--gold)
   .hp-runway { grid-area: run; }
   .sound-toggle { width: 40px; height: 40px; font-size: 16px; }
 }
+
+/* ==================================================================== *
+ *  V5 · MESA EN 3 FILAS (rivales arriba · centro · jugador abajo)      *
+ *       Las cartas siempre visibles; nada tapa el centro.              *
+ * ==================================================================== */
+.felt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  width: min(1000px, 96vw);
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  padding: 8px clamp(10px, 3vw, 26px);
+}
+.felt-opponents {
+  display: flex; flex-wrap: wrap;
+  justify-content: center; align-items: flex-start;
+  gap: 4px 10px;
+  width: 100%;
+  z-index: 2;
+}
+.felt-you {
+  display: flex; justify-content: center; align-items: flex-end;
+  width: 100%;
+  z-index: 6;
+}
+.felt-center {
+  position: relative;
+  left: auto; top: auto; transform: none;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  z-index: 4;
+  max-width: 92%;
+}
+.seat {
+  position: relative;
+  left: auto; top: auto; transform: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.seat-you { flex-direction: column-reverse; gap: 4px; }
+
+/* Evita que las etiquetas vacias reserven alto y empujen la mesa */
+.seat-action { min-height: 0; }
+.seat-bet { min-height: 0; }
+
+/* Rivales compactos */
+.seat-opp .character { width: 44px; height: 62px; }
+.seat-opp .seat-plate { min-width: 64px; padding: 2px 6px; gap: 1px; }
+.seat-opp .seat-name { font-size: 10.5px; }
+.seat-opp .seat-title { font-size: 9px; }
+.seat-opp .seat-stack { font-size: 9.5px; padding: 1px 6px; }
+.seat-opp .seat-hand .card { width: 34px; height: 48px; }
+.seat-opp .seat-chips { display: none; }
+.seat-opp .seat-photo { width: 24px; height: 24px; }
+.seat-opp .char-head { width: 40px; height: 40px; margin-top: -14px; }
+
+/* Jugador humano */
+.seat-you .character.char-big { width: 50px; height: 60px; }
+.seat-you .character.char-big .char-head { width: 40px; height: 40px; margin-top: -13px; }
+.seat-you .character.char-big .char-torso { width: 36px; height: 34px; }
+.seat-you .seat-hand { margin-top: 0; }
+.seat-you .seat-hand .card { width: 46px; height: 64px; }
+.seat-you .seat-plate { min-width: 86px; padding: 2px 9px; }
+.seat-you .seat-name { font-size: 11.5px; }
+.seat-you .seat-chips { height: 15px; }
+.seat-you .seat-chips .chip-disc { width: 13px; height: 13px; margin-left: -7px; }
+.seat-you .seat-photo { width: 28px; height: 28px; }
+
+/* Centro: bote y board */
+.pot-label { font-size: 12px; padding: 3px 13px; }
+.board-hand { min-height: 66px; }
+.board-hand .card { width: 44px; height: 62px; }
+.hand-name { font-size: 12px; min-height: 15px; }
+.pot-chips { min-height: 18px; }
+
+/* Recupera espacio vertical para la mesa */
+.felt-wrap { padding: 10px; gap: 10px; }
+.controls { padding: 8px 12px; gap: 10px; }
+
+/* ==================================================================== *
+ *  V5 · RESPONSIVE GENERAL (movil y tablet)                            *
+ * ==================================================================== */
+@media (max-width: 980px) {
+  .map-hud, .table-hud { padding: 8px 12px; }
+  .hud-name { font-size: 14px; }
+}
+
+@media (max-width: 780px) {
+  .profile-wrap { padding: 14px; }
+  .panel { padding: 20px 18px; }
+  .city-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+}
+
+@media (max-width: 640px) {
+  body { font-size: 15px; }
+  .table-hud { gap: 6px; padding: 6px 8px; }
+  .table-level { font-size: 13px; max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hud-gold-pill { font-size: 13px; padding: 4px 10px; }
+  .btn.small { padding: 6px 10px; font-size: 12px; }
+
+  .felt {
+    border-width: 7px;
+    border-radius: 40% / 24%;
+    padding: 8px;
+    gap: 4px;
+    width: 100%;
+  }
+  .felt-opponents { gap: 2px 6px; }
+  .seat-opp .character { width: 40px; height: 58px; }
+  .seat-opp .seat-plate { min-width: 58px; padding: 2px 6px; border-radius: 9px; }
+  .seat-opp .seat-name { font-size: 9.5px; }
+  .seat-opp .seat-title { display: none; }
+  .seat-opp .seat-stack { font-size: 9px; padding: 0 6px; }
+  .seat-opp .seat-hand .card { width: 30px; height: 43px; }
+  .seat-opp .seat-chips { display: none; }
+
+  .seat-you .character.char-big { width: 54px; height: 76px; }
+  .seat-you .seat-hand .card { width: 48px; height: 68px; }
+  .seat-you .seat-plate { min-width: 88px; padding: 3px 10px; }
+
+  .board-hand { min-height: 66px; }
+  .board-hand .card { width: 42px; height: 60px; }
+  .pot-label { font-size: 12px; padding: 3px 12px; }
+  .hand-name { font-size: 12px; }
+
+  .controls { gap: 6px; padding: 8px 6px; }
+  .controls .btn { padding: 9px 12px; font-size: 13px; }
+  .raise-control { flex-wrap: wrap; justify-content: center; }
+  .raise-control input[type="range"] { width: 140px; }
+  .sound-toggle { width: 38px; height: 38px; font-size: 15px; bottom: 12px; right: 12px; }
+}
+
+@media (max-width: 420px) {
+  .seat-opp .character { width: 34px; height: 50px; }
+  .seat-opp .seat-hand .card { width: 26px; height: 38px; }
+  .seat-opp .seat-name { font-size: 9px; }
+  .seat-you .seat-hand .card { width: 42px; height: 60px; }
+  .board-hand .card { width: 36px; height: 52px; }
+  .controls .btn { padding: 8px 10px; font-size: 12px; }
+}

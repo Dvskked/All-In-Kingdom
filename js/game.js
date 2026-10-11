@@ -324,27 +324,21 @@
     return b;
   }
 
-  function seatPositions(n) {
-    const pos = [];
-    pos[0] = { x: 50, y: 79 };
-    const opp = n - 1;
-    for (let i = 0; i < opp; i++) {
-      const t = (i + 1) / (opp + 1);
-      const angle = Math.PI * (1 + t);
-      pos[i + 1] = { x: 50 + 44 * Math.cos(angle), y: 42 + 24 * Math.sin(angle) };
-    }
-    return pos;
-  }
-
   /**
    * Construye la mesa. seatSpecs: [{name,title,face,color,skin,isHuman,stack,photo}]
+   * Disposicion robusta de 3 filas: rivales arriba, centro (bote+board) en medio,
+   * jugador humano abajo. Asi las cartas nunca tapan el centro ni se salen.
    */
   function buildFelt(seatSpecs) {
     const felt = $("felt");
     UI.clear(felt);
     App.seats = [];
 
-    /* Centro: bote + board */
+    const oppRow = document.createElement("div");
+    oppRow.className = "felt-opponents";
+    const youRow = document.createElement("div");
+    youRow.className = "felt-you";
+
     const center = document.createElement("div");
     center.className = "felt-center";
     center.innerHTML =
@@ -352,14 +346,14 @@
       '<div id="board-cards" class="hand board-hand"></div>' +
       '<div id="hand-name" class="hand-name"></div>' +
       '<div id="pot-chips" class="pot-chips"></div>';
-    felt.appendChild(center);
 
-    const positions = seatPositions(seatSpecs.length);
+    felt.appendChild(oppRow);
+    felt.appendChild(center);
+    felt.appendChild(youRow);
+
     seatSpecs.forEach(function (spec, i) {
       const el = document.createElement("div");
       el.className = "seat" + (spec.isHuman ? " seat-you" : " seat-opp");
-      el.style.left = positions[i].x + "%";
-      el.style.top = positions[i].y + "%";
 
       const charEl = C.create({ face: spec.face, color: spec.color, skin: spec.skin, size: spec.isHuman ? "big" : "" });
       const cardsEl = document.createElement("div");
@@ -378,19 +372,24 @@
       const betEl = document.createElement("div");
       betEl.className = "seat-bet";
 
+      /* Orden normal: cara, placa, fichas, cartas, accion, apuesta.
+         En .seat-you el CSS usa column-reverse: la cara queda abajo y las
+         cartas por encima apuntando al centro. */
       el.appendChild(charEl);
       el.appendChild(plate);
       el.appendChild(chipsEl);
       el.appendChild(cardsEl);
       el.appendChild(actionEl);
       el.appendChild(betEl);
-      felt.appendChild(el);
 
       App.seats[i] = {
         el: el, charEl: charEl, cardsEl: cardsEl, plate: plate, chipsEl: chipsEl,
         stackEl: plate.querySelector(".seat-stack"),
         actionEl: actionEl, betEl: betEl, dealt: false
       };
+
+      if (spec.isHuman) youRow.appendChild(el);
+      else oppRow.appendChild(el);
     });
   }
 

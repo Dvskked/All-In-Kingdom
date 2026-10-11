@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>All-In Kingdom · El Imperio del Casino</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ============================ PERFIL ============================ -->
+  <section id="screen-profile" class="screen active">
+    <div class="profile-wrap">
+      <div class="brand">
+        <img class="brand-logo" src="img/logo.png" alt="All-In Kingdom" />
+        <p class="brand-sub">De un pueblito perdido al trono de Las Vegas</p>
+      </div>
+
+      <div class="panel profile-panel">
+        <h2 class="panel-title">Crea tu jugador</h2>
+
+        <label class="field">
+          <span class="field-label">Nombre de usuario</span>
+          <input id="input-name" type="text" maxlength="16" placeholder="Ej. As Bajo la Manga" autocomplete="off" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Edad</span>
+          <input id="input-age" type="number" min="18" max="120" value="21" />
+        </label>
+
+        <div class="field">
+          <span class="field-label">Tu foto de perfil (opcional)</span>
+          <div class="photo-row">
+            <label for="input-photo" class="photo-upload">📷 <span>Subir foto</span></label>
+            <input id="input-photo" type="file" accept="image/*" hidden />
+            <div id="photo-preview" class="photo-preview hidden"></div>
+          </div>
+          <p class="field-hint">Si no subes foto, se usa tu personaje generado en mesa y en el HUD.</p>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Tu personaje</span>
+          <div class="char-pick">
+            <div id="char-preview" class="char-preview"></div>
+            <button id="btn-char-reroll" type="button" class="btn chip">🎲 ¿Otro personaje?</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Oro inicial</span>
+          <div class="gold-presets">
+            <button type="button" class="btn chip" data-gold="500">500</button>
+            <button type="button" class="btn chip" data-gold="1000">1.000</button>
+            <button type="button" class="btn chip" data-gold="2500">2.500</button>
+            <button type="button" class="btn chip" data-gold="5000">5.000</button>
+          </div>
+          <input id="gold-input" type="number" min="100" max="100000" step="100" value="500" />
+        </div>
+
+        <button id="btn-start" class="btn primary big">Empezar la aventura ♠</button>
+        <p class="note">+18 · El juego usa oro ficticio, sin valor real.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= MAPA DE CIUDADES ======================= -->
+  <section id="screen-city" class="screen">
+    <header class="map-hud">
+      <div class="hud-left">
+        <div id="hud-avatar" class="hud-avatar"></div>
+        <div class="hud-names">
+          <span id="hud-player-name" class="hud-name">Jugador</span>
+          <span class="hud-prog">Mesas ganadas <b id="hud-rep">0</b></span>
+        </div>
+      </div>
+      <div class="hud-right">
+        <button id="btn-city-guide" class="btn ghost small" title="Guía de manos">📖 Guía</button>
+        <div class="hud-gold-pill">🪙 <b id="hud-gold">0</b></div>
+        <button id="btn-reset" class="btn ghost small" title="Reiniciar aventura">↺</button>
+      </div>
+    </header>
+
+    <div class="map-body">
+      <h2 class="map-title">Ruta de ciudades</h2>
+      <p class="map-sub">Gana oro para viajar a ciudades casino cada vez más grandes. Tu destino final: <b>Las Vegas</b>.</p>
+      <div id="city-list" class="city-list"></div>
+    </div>
+  </section>
+
+  <!-- ============================= CASINO ============================= -->
+  <section id="screen-casino" class="screen">
+    <div id="casino-bg" class="casino-bg"></div>
+    <header class="table-hud casino-hud">
+      <button id="btn-casino-back" class="btn ghost small" onclick="AllInApp.debug.renderCityMap(); AllInApp.debug.showScreen('screen-city')">← Mapa</button>
+      <div id="casino-city" class="table-level">Casino</div>
+      <div class="hud-gold-pill">🪙 <b id="casino-gold">0</b></div>
+    </header>
+    <div id="casino-body" class="casino-body"></div>
+  </section>
+
+  <!-- ============================== MESA ============================== -->
+  <section id="screen-table" class="screen">
+    <header class="table-hud">
+      <button id="btn-leave" class="btn ghost small">← Salir</button>
+      <div id="hud-level" class="table-level">Mesa</div>
+      <div class="hud-right">
+        <button id="btn-table-guide" class="btn ghost small">📖 Guía</button>
+        <div class="hud-gold-pill">🪙 <b id="hud-gold-table">0</b></div>
+      </div>
+    </header>
+
+    <div class="felt-wrap">
+      <div id="felt" class="felt"></div>
+      <div id="controls" class="controls"></div>
+    </div>
+  </section>
+
+  <!-- ========================= HIPODROMO ============================= -->
+  <section id="screen-horses" class="screen">
+    <header class="table-hud">
+      <button id="btn-hp-back" class="btn ghost small">← Salir</button>
+      <div id="hud-hp-level" class="table-level">Hipódromo</div>
+      <div class="hud-right">
+        <button id="btn-hp-guide" class="btn ghost small">❓ Reglas</button>
+        <div class="hud-gold-pill">🪙 <b id="hud-hp-gold">0</b></div>
+      </div>
+    </header>
+    <div class="hp-wrap">
+      <div id="hp-status" class="hp-status">Elige un caballo y apuesta.</div>
+      <div id="hp-track" class="hp-track"></div>
+      <div id="hp-controls" class="hp-controls"></div>
+    </div>
+  </section>
+
+  <!-- ============================ OVERLAYS ============================ -->
+  <button id="sound-toggle" class="sound-toggle" title="Sonido on/off">🔊</button>
+
+  <div id="modal-overlay" class="modal-overlay">
+    <div id="modal-box" class="modal-box"></div>
+  </div>
+
+  <div id="toast-box" class="toast-box"></div>
+  <div id="fx-layer" class="fx-layer"></div>
+
+  <script src="js/guard.js"></script>
+  <script src="js/deck.js"></script>
+  <script src="js/poker.js"></script>
+  <script src="js/blackjack.js"></script>
+  <script src="js/horses.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/progression.js"></script>
+  <script src="js/characters.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+  <script>
+  window.addEventListener("DOMContentLoaded", function () {
+    var m = location.search.match(/mode=(\w+)/);
+    var mode = m ? m[1] : "poker";
+    var wm = location.search.match(/w=(\d+)/);
+    var winW = wm ? parseInt(wm[1], 10) : 0;
+    if (winW) { try { window.resizeTo(winW, 900); } catch (e) {} }
+    document.getElementById("input-name").value = "Tester";
+    document.getElementById("input-age").value = "21";
+    document.getElementById("gold-input").value = "900000";
+    document.getElementById("btn-start").click();
+    AllInApp.state.gold = 900000;
+    var cityId = (location.search.match(/city=(\w+)/) || [])[1] || "tokio";
+    var city = AK.cityById(cityId);
+    var cas = city.casinos[0];
+    var t = cas.tables.filter(function (x) { return x.game === (mode === "blackjack" ? "blackjack" : (mode === "horses" ? "horses" : "poker")); })[0];
+    AllInApp.debug.startTable(city, cas, t);
+  });
+  </script>
+</body>
+</html>
