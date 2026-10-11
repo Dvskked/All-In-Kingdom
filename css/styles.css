@@ -1275,6 +1275,7 @@ input[type="text"]:focus, input[type="number"]:focus { border-color: var(--gold)
 .hud-face { width: 100%; height: 100%; display: grid; place-items: center; }
 .hud-face img { width: 100%; height: 100%; object-fit: cover; }
 .hud-face svg { width: 135%; height: 135%; }
+.hud-face .char-portrait { width: 100%; height: 100%; }
 .hud-avatar.has-photo {
   border: 1px solid var(--accent, var(--gold));
   box-shadow: 0 0 16px -3px var(--accent, var(--gold)), 0 0 0 3px rgba(0,0,0,.4);
@@ -1346,6 +1347,8 @@ input[type="text"]:focus, input[type="number"]:focus { border-color: var(--gold)
   filter: drop-shadow(0 8px 18px rgba(0,0,0,.55));
 }
 .char-preview svg { width: 100%; height: 100%; }
+.char-preview .char-portrait { border-radius: 50%; box-shadow: 0 0 0 3px var(--accent, var(--gold)), 0 10px 24px rgba(0,0,0,.55); }
+.char-preview .char-av-img { border-radius: 50%; }
 
 /* --- Mesa de lujo: madera, remaches y marquesina --- */
 .felt {
@@ -2013,5 +2016,140 @@ input[type="text"]:focus, input[type="number"]:focus { border-color: var(--gold)
   .board-hand .card { width: 44px; height: 62px; }
   .seat-you .seat-hand .card { width: 46px; height: 66px; }
   .seat-opp .seat-hand .card { width: 34px; height: 48px; }
+}
+
+/* ==================================================================== *
+ *  V8 · AVATARES TIPO FOTO, CARTAS PREMIUM, BALANCE Y ASIENTOS         *
+ * ==================================================================== */
+
+/* --------------------------- AVATARES ---------------------------- */
+.character {
+  position: relative;
+  width: 64px; height: 64px;
+  border-radius: 50%;
+}
+.character.char-big { width: 88px; height: 88px; }
+.character.char-small { width: 52px; height: 52px; }
+
+.char-av {
+  position: relative;
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #0d1018;
+  border: 2px solid var(--accent, var(--gold));
+  box-shadow: 0 0 0 2px rgba(0,0,0,.4), 0 6px 14px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,255,255,.06);
+  transition: box-shadow .25s ease, transform .2s ease;
+}
+.char-av-img, .char-av .char-portrait {
+  width: 100%; height: 100%; display: block; object-fit: cover;
+}
+
+/* Reacciones del avatar */
+.character.is-active { filter: none; }
+.character.is-active .char-av {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold), 0 0 22px rgba(245,197,66,.8), inset 0 0 0 2px rgba(0,0,0,.5);
+}
+.character.is-bet .char-av, .character.is-call .char-av { animation: avPop .36s ease; }
+.character.is-allin .char-av { animation: avAllin .5s ease 2; }
+.character.is-win .char-av { animation: avWin .6s ease; box-shadow: 0 0 0 3px var(--gold), 0 0 26px rgba(245,197,66,.9); }
+.character.is-lose .char-av, .character.is-sad .char-av { animation: avLose .6s ease; filter: grayscale(.45) brightness(.85); }
+.character.is-fold .char-av { animation: avFold .5s ease; }
+.character.is-thinking .char-av { animation: avThink 1.2s ease-in-out infinite; }
+.character.dead .char-av { filter: grayscale(1) brightness(.6); }
+@keyframes avPop { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+@keyframes avAllin { 0%{transform:scale(1)} 35%{transform:scale(1.18) rotate(-5deg)} 70%{transform:scale(1.18) rotate(5deg)} 100%{transform:scale(1)} }
+@keyframes avWin { 0%{transform:scale(1)} 30%{transform:scale(1.2)} 60%{transform:scale(.95)} 100%{transform:scale(1)} }
+@keyframes avLose { 0%{transform:scale(1)} 40%{transform:translateY(5px) scale(.92)} 100%{transform:scale(1)} }
+@keyframes avFold { 0%{transform:translateX(0)} 30%{transform:translateX(-6px)} 60%{transform:translateX(6px)} 100%{transform:translateX(0)} }
+@keyframes avThink { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+
+/* ------------------- CARTAS MAS GRANDES Y PREMIUM ----------------- */
+.card { width: 96px; height: 134px; border-radius: 11px; }
+.card-face { border-radius: 11px; }
+.card-front { border-width: 2px; }
+.card-front::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255,255,255,.12), transparent 42%);
+  border-radius: inherit;
+}
+.card-front .corner.tl { top: 8px; left: 9px; }
+.card-front .corner.br { bottom: 8px; right: 9px; }
+.card-front .rk { font-size: 25px; }
+.card-front .st { font-size: 22px; }
+.card-front .pip { font-size: 60px; }
+.card-front .pip.big { font-size: 74px; }
+.card-back::before { font-size: 46px; }
+.card-back::after { inset: 10px; border-radius: 7px; }
+
+.board-hand { min-height: 120px; }
+.board-hand .card { width: 74px; height: 104px; }
+.seat .seat-hand .card { width: 58px; height: 82px; }
+.seat-you .seat-hand .card { width: 74px; height: 104px; }
+.seat-opp .seat-hand .card { width: 54px; height: 76px; }
+.card.mini { width: 56px; height: 80px; }
+.card.mini .card-front .rk { font-size: 16px; }
+.card.mini .card-front .st { font-size: 14px; }
+.card.mini .card-front .pip { font-size: 34px; }
+.card.mini .card-front .pip.big { font-size: 40px; }
+.hand { min-height: 134px; }
+
+/* --------------------- ASIENTOS BIEN SEPARADOS -------------------- */
+.felt-inner { gap: 12px; }
+.felt-opponents { gap: 12px 22px; }
+.seat { gap: 7px; }
+.seat-opp { min-width: 92px; }
+.seat-opp .seat-hand { margin-top: 3px; }
+.seat-you .seat-hand { margin-top: 4px; }
+.seat-plate { border-radius: 14px; }
+.seat .character { width: 56px; height: 56px; }
+.seat .character.char-big { width: 78px; height: 78px; }
+.seat-opp .character.char-big { width: 60px; height: 60px; }
+
+/* --------------------------- BALANCE ----------------------------- */
+.hud-center { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+.table-balance {
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(180deg, rgba(245,197,66,.18), rgba(245,197,66,.05));
+  border: 1px solid rgba(245,197,66,.45);
+  border-radius: 999px;
+  padding: 4px 16px;
+  font-size: 13px; font-weight: 700; color: #f4e6bf;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+.table-balance b { color: var(--gold-lt); font-size: 15px; }
+.table-balance .tb-info { color: #cdd2dc; font-weight: 600; }
+
+/* --------------------- PULIDO GENERAL (sobrio) -------------------- */
+.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.city-card.unlocked:hover { transform: translateY(-4px); }
+.table-card { transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease; }
+.table-card:hover:not(:disabled) { transform: translateY(-4px); border-color: var(--gold-dk); box-shadow: 0 14px 30px -12px rgba(0,0,0,.9); }
+.seat.is-turn .char-av { border-color: var(--gold); }
+
+@media (max-width: 640px) {
+  .card { width: 66px; height: 92px; }
+  .card-front .rk { font-size: 18px; }
+  .card-front .st { font-size: 16px; }
+  .card-front .pip { font-size: 42px; }
+  .card-front .pip.big { font-size: 50px; }
+  .board-hand .card { width: 52px; height: 74px; }
+  .seat-you .seat-hand .card { width: 54px; height: 76px; }
+  .seat-opp .seat-hand .card { width: 40px; height: 56px; }
+  .seat-opp { min-width: 74px; }
+  .hand { min-height: 92px; }
+  .table-balance { padding: 3px 10px; font-size: 12px; gap: 8px; }
+  .table-balance b { font-size: 13px; }
+  .seat .character { width: 48px; height: 48px; }
+  .seat-opp .character { width: 44px; height: 44px; }
+}
+@media (max-width: 420px) {
+  .card { width: 56px; height: 78px; }
+  .board-hand .card { width: 46px; height: 66px; }
+  .seat-you .seat-hand .card { width: 48px; height: 68px; }
+  .seat-opp .seat-hand .card { width: 36px; height: 50px; }
+  .seat .character { width: 42px; height: 42px; }
 }
 

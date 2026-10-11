@@ -62,9 +62,16 @@
     return scoreSum / iters;
   }
 
-  /** Accion del bot en turno. */
-  function decideAction(table, profile) {
+  /**
+   * Accion del bot en turno.
+   * @param {object} table
+   * @param {object} profile
+   * @param {number} [skill] 0..1 · habilidad del bot (baja = mas debil y comete mas fallos)
+   */
+  function decideAction(table, profile, skill) {
     profile = profile || AI_PROFILES.medio;
+    if (typeof skill !== "number") skill = 0.75;
+    skill = Math.max(0, Math.min(1, skill));
     const p = table.currentPlayer();
     if (!p) return { type: "fold" };
 
@@ -78,18 +85,22 @@
 
     const iters = Math.max(70, 180 - opponents * 14);
     const equity = estimateEquity(p.hole, table.community, opponents, iters);
-    const eff = Math.max(0, Math.min(1, equity + (Math.random() - 0.5) * profile.variance * 2));
+    /* Cuanto menos habil, mas ruido: sobrevalora o infravalora su mano. */
+    const noise = profile.variance + (1 - skill) * 0.42;
+    const eff = Math.max(0, Math.min(1, equity + (Math.random() - 0.5) * noise * 2));
 
     const potOdds = toCall > 0 ? toCall / (pot + toCall) : 0;
     const r = Math.random();
-    const aggro = profile.aggression;
+    /* Los bots flojos suben y farolean menos. */
+    const aggro = profile.aggression * (0.45 + 0.55 * skill);
 
     /* Ajustes por numero de rivales y posicion */
     const multiPenalty = (opponents - 1) * 0.055;
-    const raiseNeed = profile.raiseThresh + multiPenalty;
+    const raiseNeed = profile.raiseThresh + multiPenalty + (1 - skill) * 0.12;
     const isLate = (p.seat === table.button || p.seat === ((table.button - 1 + table.players.length) % table.players.length));
     const posBonus = isLate ? 0.04 : 0;
-    const bluffChance = profile.bluff / (1 + (opponents - 1) * 0.8);
+    /* Mas skill = farol mas creible; bots flojos casi no farolean. */
+    const bluffChance = (profile.bluff * (0.25 + 0.75 * skill)) / (1 + (opponents - 1) * 0.8);
 
     const wantRaise = eff + posBonus >= raiseNeed || r < bluffChance * (toCall > 0 ? 0.5 : 1);
 
@@ -103,7 +114,8 @@
       return { type: "check", equity: equity };
     }
 
-    const need = potOdds * profile.callMargin;
+    /* Bots flojos exigen mas equity para pagar: se retiran mas ante presion. */
+    const need = potOdds * profile.callMargin * (1 + (1 - skill) * 1.25);
     const canRaise = types.indexOf("raise") >= 0 && p.stack > toCall;
 
     if (eff + posBonus >= raiseNeed + 0.08 && canRaise && r < aggro + 0.3) {
@@ -118,7 +130,13 @@
     return { type: "fold", equity: equity };
   }
 
+  /** Habilidad del bot segun el tier de la ciudad (ciudades tempranas = mas faciles). */
+  function skillForTier(tier) {
+    return Math.max(0.30, Math.min(0.92, 0.32 + (tier || 1) * 0.105));
+  }
+
   AK.AI_PROFILES = AI_PROFILES;
   AK.estimateEquity = estimateEquity;
   AK.decideAction = decideAction;
+  AK.skillForTier = skillForTier;
 })(window);

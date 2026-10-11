@@ -129,7 +129,7 @@
 
   UI.burstFromCenter = function (amount) { UI.goldBurst(window.innerWidth / 2, window.innerHeight / 2, amount); };
   UI.burstFromEl = function (el, amount) {
-    if (!el) return UI.burstFromCenter(amount);
+    if (!el || typeof el.getBoundingClientRect !== "function") return UI.burstFromCenter(amount);
     const r = el.getBoundingClientRect();
     UI.goldBurst(r.left + r.width / 2, r.top + r.height / 2, amount);
   };

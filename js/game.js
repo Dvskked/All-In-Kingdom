@@ -151,13 +151,13 @@
   function portraitHTML(s) {
     if (s && s.photo) return '<img class="hud-face" src="' + s.photo + '" alt="Tu foto"/>';
     const face = (s && s.face) || C.randomFace();
-    return '<span class="hud-face svg">' + C.headHTML(face) + "</span>";
+    return '<span class="hud-face svg">' + C.portraitHTML(face, (s && s.color) || "#3a4152") + "</span>";
   }
 
   function renderCharPreview() {
     const box = $("char-preview");
     if (!box) return;
-    box.innerHTML = C.headHTML(profileSelection.face);
+    box.innerHTML = C.portraitHTML(profileSelection.face, profileSelection.color);
     box.style.setProperty("--accent", profileSelection.color);
   }
 
@@ -582,13 +582,12 @@
       const el = document.createElement("div");
       el.className = "seat" + (spec.isHuman ? " seat-you" : " seat-opp");
 
-      const charEl = C.create({ face: spec.face, color: spec.color, skin: spec.skin, size: spec.isHuman ? "big" : "" });
+      const charEl = C.create({ face: spec.face, color: spec.color, skin: spec.skin, photo: spec.photo, name: spec.name, size: spec.isHuman ? "big" : "" });
       const cardsEl = document.createElement("div");
       cardsEl.className = "hand seat-hand";
       const plate = document.createElement("div");
       plate.className = "seat-plate";
       plate.innerHTML =
-        (spec.photo ? '<img class="seat-photo" src="' + spec.photo + '" alt="' + spec.name + '"/>' : "") +
         '<span class="seat-name">' + spec.name + "</span>" +
         (spec.title ? '<span class="seat-title">' + spec.title + "</span>" : "") +
         '<span class="seat-stack"></span>';
@@ -640,6 +639,11 @@
 
   function updateHudGold() {
     const g = $("hud-gold-table"); if (g) g.textContent = UI.formatGold(App.state.gold);
+    const tg = $("tb-gold"); if (tg) tg.textContent = UI.formatGold(App.state.gold);
+  }
+
+  function setBalance(info) {
+    const el = $("tb-info"); if (el) el.textContent = info || "";
   }
 
   function seatActive(seatIdx, active) {
@@ -689,6 +693,7 @@
   function startPoker(t) {
     App.mode = "poker"; App.leaving = false;
     const botCount = t.seats - 1;
+    App.botSkill = AK.skillForTier(App.city.tier);
     const bots = AK.pickBots(App.city.tier, botCount);
 
     const specs = [playerSeatSpec(t.buyIn)]
@@ -795,7 +800,7 @@
           const delay = 750 + Math.random() * 900;
           window.setTimeout(function () {
             seatActive(-1, false);
-            const choice = AK.decideAction(App.engine, AK.AI_PROFILES[p.profile] || AK.AI_PROFILES.medio);
+            const choice = AK.decideAction(App.engine, AK.AI_PROFILES[p.profile] || AK.AI_PROFILES.medio, typeof App.botSkill === "number" ? App.botSkill : AK.skillForTier(App.city.tier));
             const ev = App.engine.act(choice.type, choice.amount);
             botReact(p, choice);
             showAction(p.seat, actionLabel(choice.type) + (choice.type === "raise" || choice.type === "allin" ? " " + UI.formatGold(choice.amount > 0 ? choice.amount : 0) : ""));
@@ -910,6 +915,8 @@
       try { $("hand-name").textContent = "Tu mano: " + AK.bestHand(you.hole.concat(en.community)).name; }
       catch (e) {}
     }
+
+    setBalance("En mesa: " + UI.formatGold(you.betThisRound ? you.stack + you.betThisRound : you.stack));
   }
 
   async function afterHand(ev) {
@@ -1099,6 +1106,8 @@
     row.appendChild(makeBtn("Cobrar y salir", "ghost", function () { cashOutBlackjack(); }));
     row.appendChild(makeBtn("\uD83C\uDCCF Guía", "ghost", UI.openBlackjackGuide));
     box.appendChild(row);
+    setBalance("Apuesta: " + UI.formatGold(App.bj.bet) + " · Banca: " + UI.formatGold(App.bj.bankroll));
+    if (App.seats[0]) showBet(0, App.bj.bet);
   }
 
   function paintBjValues() {
@@ -1124,7 +1133,9 @@
     clearBjCards();
     const res = App.engine.newRound(App.bj.bet);
     setStack(0, App.bj.bankroll);
+    if (App.seats[0]) showBet(0, App.bj.bet);
     $("pot-label").textContent = "Apuesta " + UI.formatGold(App.bj.bet);
+    setBalance("Apuesta: " + UI.formatGold(App.bj.bet) + " · Banca: " + UI.formatGold(App.bj.bankroll));
     renderBjDealer();
     renderBjPlayer();
     if (AK.Sound) AK.Sound.play("deal");
@@ -1198,6 +1209,8 @@
     syncBjDealer();
     if (AK.Sound && res && (res.type === "hit" || res.type === "split")) AK.Sound.play("deal");
     paintBjValues();
+    const totals = App.engine.hands.map(function (h) { return AK.handValue(h.cards).total; }).join(" / ");
+    setBalance("Mano " + totals + " · Banca: " + UI.formatGold(App.bj.bankroll));
     if (res && res.type === "result") {
       App.bj.pending = res;
       revealDealer();
@@ -1240,7 +1253,7 @@
   function revealDealer() {
     UI.revealAll(App.seats[1].cardsEl);
     App.bj.dealerRevealed = true;
-    C.react(App.seats[1].charEl, "think", 800);
+    C.react(App.seats[1].charEl, "thinking", 800);
     paintBjValues();
   }
 
@@ -1249,7 +1262,9 @@
     App.bj.settled = true;
     App.bj.bankroll += res.payout;
     setStack(0, App.bj.bankroll);
+    if (App.seats[0]) showBet(0, 0);
     $("pot-label").textContent = "Banca " + UI.formatGold(App.bj.bankroll);
+    setBalance("Banca: " + UI.formatGold(App.bj.bankroll));
 
     const outcomes = (res.results || []).map(function (r) { return r.outcome; });
     const anyWin = outcomes.indexOf("win") >= 0;

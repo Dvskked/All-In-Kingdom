@@ -258,11 +258,9 @@
     }
   }
 
-  /* Rostro completo en SVG. También se usa para el HUD (pequeño). */
-  function headSVG(face) {
-    const f = face;
-    return '<svg class="char-face" viewBox="0 0 100 100" aria-hidden="true">' +
-      hairBack(f) +
+  /* Rasgos del rostro (sin cuello). Reutilizado por la cabeza y el retrato. */
+  function faceFeatures(f) {
+    return hairBack(f) +
       '<ellipse cx="50" cy="54" rx="33" ry="34" fill="' + f.skin + '" stroke="rgba(0,0,0,.16)" stroke-width="1"/>' +
       '<ellipse cx="68" cy="60" rx="11" ry="20" fill="rgba(0,0,0,.10)"/>' +
       '<path d="M30 38 Q22 84 44 92 Q20 84 30 38 Z" fill="rgba(255,255,255,.16)"/>' +
@@ -275,12 +273,37 @@
       nose(f) +
       mouth(f) +
       facialHair(f) +
-      '<rect x="41" y="86" width="18" height="14" rx="7" fill="' + f.skin + '"/>' +
-      accessory(f) +
+      accessory(f);
+  }
+  function neck(f) { return '<rect x="41" y="86" width="18" height="14" rx="7" fill="' + f.skin + '"/>'; }
+
+  /* Cabeza suelta. Se usa para el HUD y la vista previa de perfil. */
+  function headSVG(face) {
+    const f = face;
+    return '<svg class="char-face" viewBox="0 0 100 100" aria-hidden="true">' +
+      faceFeatures(f) + neck(f) +
+      "</svg>";
+  }
+
+  /* Retrato tipo FOTO DE PERFIL: fondo, hombros y busto. */
+  function portraitSVG(f, accent) {
+    const acc = accent || "#3a4152";
+    return '<svg class="char-portrait" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">' +
+      '<rect width="100" height="100" fill="#0f131c"/>' +
+      '<circle cx="50" cy="42" r="58" fill="' + acc + '" opacity="0.18"/>' +
+      '<circle cx="50" cy="94" r="70" fill="#000" opacity="0.25"/>' +
+      /* hombros / traje */
+      '<path d="M2 100 Q6 72 30 66 L50 63 L70 66 Q94 72 98 100 Z" fill="' + acc + '"/>' +
+      '<path d="M2 100 Q6 72 30 66 L50 63 L70 66 Q94 72 98 100 Z" fill="rgba(0,0,0,.28)"/>' +
+      /* camisa y solapa */
+      '<path d="M42 64 L50 80 L58 64 L52 70 L50 84 L48 70 Z" fill="rgba(255,255,255,.14)"/>' +
+      '<path d="M50 63 L47 56 L53 56 Z" fill="rgba(255,255,255,.10)"/>' +
+      '<g transform="translate(50,42) scale(0.76) translate(-50,-48)">' + faceFeatures(f) + neck(f) + '</g>' +
       "</svg>";
   }
 
   Characters.headHTML = function (face) { return headSVG(face || defaultFace()); };
+  Characters.portraitHTML = function (face, accent) { return portraitSVG(face || defaultFace(), accent); };
 
   /* ================================================================== *
    *  PERSONAJE COMPLETO                                                *
@@ -288,8 +311,8 @@
   const REACTIONS = ["is-bet", "is-allin", "is-call", "is-win", "is-lose", "is-fold", "is-thinking", "is-sad", "is-happy"];
 
   /**
-   * Crea un personaje.
-   * @param {object} spec { face(claves de rasgos), color, skin, size }
+   * Crea un avatar circular (foto de perfil) para el asiento.
+   * @param {object} spec { face, color, photo, size }
    */
   Characters.create = function (spec) {
     spec = spec || {};
@@ -305,29 +328,13 @@
     el.style.setProperty("--accent-2", accent2);
     el.style.setProperty("--skin", face.skin);
 
-    const suit =
-      '<svg class="char-suit" viewBox="0 0 40 42" aria-hidden="true">' +
-        '<path d="M20 2 Q34 4 38 14 L38 20 L2 20 L2 14 Q6 4 20 2 Z" fill="rgba(255,255,255,.16)"/>' +
-        '<path d="M20 2 Q34 4 38 14 L38 22 Q30 15 20 15 Q10 15 2 22 L2 14 Q6 4 20 2 Z" fill="rgba(0,0,0,.28)"/>' +
-        '<path d="M12 6 L20 21 L28 6 Q24 3 20 3 Q16 3 12 6 Z" fill="rgba(0,0,0,.45)"/>' +
-        '<path d="M20 20 L17 13 L20 8 L23 13 Z" fill="var(--accent-2)"/>' +
-        '<path d="M20 20 L18.4 15 L20 13 L21.6 15 Z" fill="rgba(0,0,0,.25)"/>' +
-        '<circle cx="20" cy="25" r="1.3" fill="rgba(0,0,0,.45)"/>' +
-        '<circle cx="20" cy="30.5" r="1.3" fill="rgba(0,0,0,.45)"/>' +
-        '<circle cx="20" cy="36" r="1.3" fill="rgba(0,0,0,.45)"/>' +
-      "</svg>";
+    const inner = spec.photo
+      ? '<img class="char-av-img" src="' + spec.photo + '" alt="' + (spec.name || "Jugador") + '"/>'
+      : portraitSVG(face, accent1);
 
     el.innerHTML =
       '<div class="char-bubble"></div>' +
-      '<div class="char-rig">' +
-        '<div class="char-arm left"></div>' +
-        '<div class="char-arm right"></div>' +
-        '<div class="char-body">' +
-          '<div class="char-torso">' + suit + "</div>" +
-        "</div>" +
-        '<div class="char-head">' + headSVG(face) + "</div>" +
-      "</div>" +
-      '<div class="char-shadow"></div>';
+      '<div class="char-av">' + inner + "</div>";
 
     if (spec.size === "big") el.classList.add("char-big");
     if (spec.size === "small") el.classList.add("char-small");
