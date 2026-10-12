@@ -1,0 +1,24 @@
+﻿============================================
+               DIAMOND SHOP
+            FACTURA DE COMPRA
+============================================
+Fecha: 11/10/2026, 12:51:58
+Pedido #: 20261011-18789
+
+DETALLE DEL PEDIDO
+--------------------------------------------
+Cant  Producto                  Subtotal
+--------------------------------------------
+1     Steam                   $15.00
+1     Netflix Permanente      $27.00
+--------------------------------------------
+                          TOTAL: $42.00
+============================================
+
+COMO COMPLETAR TU COMPRA
+1) Entra a nuestro Discord: https://discord.com/invite/6K7nezXhx6
+2) Abre un ticket.
+3) Envia ESTE archivo .txt para ver tu compra.
+4) Coordina el pago y recibe tu entrega.
+
+Gracias por comprar en DIAMOND SHOP.
